@@ -29,6 +29,8 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 
 ## Quick start
 
+> **New here?** See [INSTALLATION.md](INSTALLATION.md) for the full walkthrough — including the **Claude-assisted install**, where you hand Claude this repo and it deploys and wires up the connector for you.
+
 ### docker run
 
 ```bash
@@ -55,7 +57,7 @@ docker compose up -d
 
 ### Unraid
 
-Import `unraid-template.xml` via Community Applications → "Add Container from XML", or add the GitHub URL to your template repositories.
+Import `abs-librarian-mcp.xml` via Community Applications → "Add Container from XML", or add the GitHub URL to your template repositories.
 
 ## Claude connector setup
 
