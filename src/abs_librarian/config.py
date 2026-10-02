@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from ipaddress import IPv6Address
 
+from .url_security import parse_cover_url_allowed_hosts
+
 
 def _trusted_hosts(raw: str) -> list[str]:
     """Parse exact Host values; never pass wildcard patterns to the SDK."""
@@ -44,6 +46,7 @@ class Config:
     blob_hours_threshold: float
     blob_file_count_threshold: int
     mcp_allowed_hosts: list[str] = field(default_factory=list)
+    cover_url_allowed_hosts: list[str] = field(default_factory=list)
 
     @property
     def trusted_hosts(self) -> list[str]:
@@ -81,4 +84,7 @@ class Config:
             blob_hours_threshold=blob_hours,
             blob_file_count_threshold=blob_files,
             mcp_allowed_hosts=_trusted_hosts(os.environ.get("MCP_ALLOWED_HOSTS", "")),
+            cover_url_allowed_hosts=parse_cover_url_allowed_hosts(
+                os.environ.get("COVER_URL_ALLOWED_HOSTS", "")
+            ),
         )

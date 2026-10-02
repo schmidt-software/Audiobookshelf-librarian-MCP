@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   abs-librarian-mcp:
-    image: ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
+    image: ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest
     container_name: abs-librarian-mcp
     restart: unless-stopped
     ports:

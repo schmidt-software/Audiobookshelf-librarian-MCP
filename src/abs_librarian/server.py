@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .abs_client import AUDIBLE, ABSClient
+from .audit import AuditLogError
 from .config import Config
 from .fs_tools import (
     detect_blobs,
@@ -19,6 +21,7 @@ from .fs_tools import (
 )
 from .jail import PathJailError
 from .metadata import SeriesCache, build_metadata_payload
+from .url_security import validate_cover_url
 
 cfg = Config.from_env()
 _series_cache = SeriesCache()
@@ -34,6 +37,7 @@ _NESTED_QUANTIFIER_RE = re.compile(
     r"\)"
     r"(?:\*|\+|\{\d+(?:,\d*)?\})"
 )
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     "Audiobookshelf Librarian",
@@ -101,6 +105,14 @@ def _compile_title_regex(title_regex: str) -> re.Pattern[str]:
             "Invalid title_regex: nested quantifiers and backreferences are not allowed."
         )
     return pattern
+def _resolve_dry_run(dry_run: bool | None, confirm: bool | None = None) -> bool:
+    if dry_run is not None and confirm is not None and dry_run != (not confirm):
+        raise ValueError("dry_run conflicts with confirm")
+    if dry_run is not None:
+        return dry_run
+    if confirm is not None:
+        return not confirm
+    return cfg.dry_run_default
 
 
 # ---------------------------------------------------------------------------
@@ -114,8 +126,9 @@ async def health() -> dict:
     try:
         libs = await client.get_libraries()
         return {"status": "ok", "abs_libraries": len(libs)}
-    except Exception as exc:
-        return {"status": "error", "detail": str(exc)}
+    except Exception:
+        logger.exception("Audiobookshelf health check failed")
+        return {"status": "error", "detail": "Audiobookshelf connectivity failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -274,19 +287,20 @@ async def batch_update_metadata(
     """
     client = _client()
 
-    # Seed series cache for this library if not already done
-    if not _series_cache._cache:
+    if not _series_cache.has_library(library_id):
         existing = await client.get_series(library_id)
-        _series_cache.seed(existing)
+        _series_cache.seed(library_id, existing)
 
     payloads = []
+    series_updates_present = False
     for u in updates:
         item_id = u["id"]
         series_raw = u.get("series")
         resolved_series = None
         if series_raw is not None:
+            series_updates_present = True
             resolved_series = [
-                _series_cache.resolve(s["name"], s.get("sequence", ""))
+                _series_cache.resolve(library_id, s["name"], s.get("sequence", ""))
                 for s in series_raw
             ]
         meta = build_metadata_payload(
@@ -300,6 +314,9 @@ async def batch_update_metadata(
         payloads.append({"id": item_id, "mediaPayload": {"metadata": meta}})
 
     results = await client.batch_update(payloads)
+    if series_updates_present:
+        _series_cache.invalidate(library_id)
+        _series_cache.seed(library_id, await client.get_series(library_id))
     return {"updated": len(payloads), "results": results}
 
 
@@ -335,6 +352,10 @@ async def set_cover(
     """Set a cover from a URL, or search a provider and use the first result."""
     client = _client()
     if url:
+        try:
+            validate_cover_url(url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, url)
         return {"item_id": item_id, "source": "url", "result": result}
     if search_title:
@@ -348,6 +369,10 @@ async def set_cover(
             first_url = first.get("image") or first.get("url")
         if not first_url:
             return {"error": "unexpected cover format", "raw": first}
+        try:
+            validate_cover_url(first_url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, first_url)
         return {"item_id": item_id, "source": "search", "cover_url": first_url, "result": result}
     return {"error": "provide url or search_title"}
@@ -388,9 +413,17 @@ async def list_missing(library_id: str) -> dict:
 
 
 @mcp.tool()
-async def delete_item(item_id: str, confirm: bool = False) -> dict:
-    """Delete a single ABS item record by ID (does NOT touch files). Requires confirm=True."""
-    if not confirm:
+async def delete_item(
+    item_id: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
+    """Delete a single ABS item record by ID (does NOT touch files)."""
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
         return {"dry_run": True, "would_delete": item_id}
     client = _client()
     try:
@@ -401,10 +434,18 @@ async def delete_item(item_id: str, confirm: bool = False) -> dict:
 
 
 @mcp.tool()
-async def purge_missing(library_id: str, confirm: bool = False) -> dict:
+async def purge_missing(
+    library_id: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """Delete ABS records for all missing items (does NOT touch files)."""
     client = _client()
-    if not confirm:
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
         items = await client.get_library_items_missing(library_id)
         return {"dry_run": True, "would_purge": len(items), "items": [i["id"] for i in items]}
     items = await client.get_library_items_missing(library_id)
@@ -424,8 +465,17 @@ async def purge_missing(library_id: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def create_backup() -> dict:
+async def create_backup(
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """Trigger an ABS backup."""
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
+        return {"dry_run": True, "would_create": "backup"}
     client = _client()
     return await client.create_backup()
 
@@ -472,14 +522,23 @@ async def tool_detect_blobs(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
+async def tool_fs_make_book_folders(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Split a blob folder: move each loose audio file into its own named subfolder.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_make_book_folders(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_make_book_folders(
+            path,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (AuditLogError, PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -488,14 +547,23 @@ async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
+async def tool_fs_flatten(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Flatten disc/CD/part subfolders into the parent with prefixed filenames.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_flatten(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_flatten(
+            path,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (AuditLogError, PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -504,15 +572,26 @@ async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_move(src: str, dest: str, confirm: bool = False) -> dict:
+async def tool_fs_move(
+    src: str,
+    dest: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Move a file or folder within the library.
     No overwrite; creates parent dirs.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_move(src, dest, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_move(
+            src,
+            dest,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -521,13 +600,23 @@ async def tool_fs_move(src: str, dest: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_quarantine(path: str, confirm: bool = False) -> dict:
+async def tool_fs_quarantine(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Move a file or folder to the quarantine directory (preserves structure).
     Nothing is deleted.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_quarantine(path, _permitted(), cfg.quarantine_dir, cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_quarantine(
+            path,
+            _permitted(),
+            cfg.quarantine_dir,
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (PathJailError, ValueError) as e:
         return {"error": str(e)}

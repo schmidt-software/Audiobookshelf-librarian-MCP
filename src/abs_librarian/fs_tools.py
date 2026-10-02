@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit import log_operation
-from .jail import resolve_safe
+from .jail import resolve_mutation_source, resolve_safe, revalidate_resolved
 
 AUDIO_EXTS = {".mp3", ".m4b", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".wav", ".wma"}
 META_FILES = {"metadata.json", "cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
@@ -18,6 +18,10 @@ META_FILES = {"metadata.json", "cover.jpg", "cover.png", "cover.jpeg", "cover.we
 _DISC_PATTERNS = re.compile(
     r"^(disc|disk|cd|part|vol|volume|book)\s*\d+$", re.IGNORECASE
 )
+
+
+def _audit_entry_without_dry_run(result: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in result.items() if k != "dry_run"}
 
 
 # ---------------------------------------------------------------------------
@@ -139,14 +143,30 @@ def fs_make_book_folders(
 
     if not dry_run:
         for m in moves:
+            if Path(m["dest"]).exists():
+                m["skipped"] = "destination exists"
+        log_operation(
+            audit_log,
+            "fs_make_book_folders",
+            dry_run,
+            path=str(src),
+            moves=moves,
+        )
+        for m in moves:
             s, d = Path(m["src"]), Path(m["dest"])
-            d.parent.mkdir(parents=True, exist_ok=True)
-            if d.exists():
+            if m.get("skipped"):
                 m["skipped"] = "destination exists"
                 continue
+            d.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(s), str(d))
-
-    log_operation(audit_log, "fs_make_book_folders", dry_run, path=str(src), moves=moves)
+    else:
+        log_operation(
+            audit_log,
+            "fs_make_book_folders",
+            dry_run,
+            path=str(src),
+            moves=moves,
+        )
     return {"dry_run": dry_run, "moves": moves, "count": len(moves)}
 
 
@@ -179,8 +199,12 @@ def fs_flatten(
 
     if not dry_run:
         for m in moves:
+            if Path(m["dest"]).exists():
+                m["skipped"] = "destination exists"
+        log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
+        for m in moves:
             s, d = Path(m["src"]), Path(m["dest"])
-            if d.exists():
+            if m.get("skipped"):
                 m["skipped"] = "destination exists"
                 continue
             shutil.move(str(s), str(d))
@@ -188,8 +212,8 @@ def fs_flatten(
         for sub in sorted(src.iterdir()):
             if sub.is_dir() and not sub.is_symlink() and not any(sub.rglob("*")):
                 sub.rmdir()
-
-    log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
+    else:
+        log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
     return {"dry_run": dry_run, "moves": moves, "count": len(moves)}
 
 
@@ -205,21 +229,32 @@ def fs_move(
     confirm: bool = False,
 ) -> dict[str, Any]:
     dry_run = not confirm
-    s = resolve_safe(src, permitted_roots)
+    s = resolve_mutation_source(src, permitted_roots)
     d = resolve_safe(dest, permitted_roots)
 
     result: dict[str, Any] = {"dry_run": dry_run, "src": str(s), "dest": str(d)}
 
-    if not dry_run:
+    if dry_run:
+        log_operation(audit_log, "fs_move", dry_run, **_audit_entry_without_dry_run(result))
+    else:
+        s = revalidate_resolved(
+            src, permitted_roots, s, path_label="source path", reject_root=True
+        )
+        d = revalidate_resolved(dest, permitted_roots, d, path_label="destination path")
+        log_operation(audit_log, "fs_move", dry_run, **_audit_entry_without_dry_run(result))
         if d.exists():
             result["error"] = "destination exists; move aborted (no overwrite)"
         else:
             d.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(s), str(d))
-            result["ok"] = True
-
-    log_kwargs = {k: v for k, v in result.items() if k != "dry_run"}
-    log_operation(audit_log, "fs_move", dry_run, **log_kwargs)
+            s = revalidate_resolved(
+                src, permitted_roots, s, path_label="source path", reject_root=True
+            )
+            d = revalidate_resolved(dest, permitted_roots, d, path_label="destination path")
+            if d.exists():
+                result["error"] = "destination exists; move aborted (no overwrite)"
+            else:
+                shutil.move(str(s), str(d))
+                result["ok"] = True
     return result
 
 
@@ -236,31 +271,67 @@ def fs_quarantine(
 ) -> dict[str, Any]:
     dry_run = not confirm
     # Validate source is inside permitted roots
-    s = resolve_safe(path, permitted_roots)
+    s = resolve_mutation_source(path, permitted_roots)
     # Quarantine dir is its own permitted root for the destination
     q = resolve_safe(quarantine_dir, permitted_roots + [quarantine_dir])
 
     # Preserve relative structure: find which root the file is under
-    rel: Path | None = None
-    for root in permitted_roots:
-        rp = Path(root).resolve(strict=False)
-        try:
-            rel = s.relative_to(rp)
-            break
-        except ValueError:
-            continue
+    rel = _relative_to_permitted_root(s, permitted_roots)
 
     dest = q / (rel if rel else s.name)
     result: dict[str, Any] = {"dry_run": dry_run, "src": str(s), "dest": str(dest)}
 
-    if not dry_run:
+    if dry_run:
+        log_operation(
+            audit_log,
+            "fs_quarantine",
+            dry_run,
+            **_audit_entry_without_dry_run(result),
+        )
+    else:
+        s = revalidate_resolved(
+            path, permitted_roots, s, path_label="source path", reject_root=True
+        )
+        q = revalidate_resolved(
+            quarantine_dir,
+            permitted_roots + [quarantine_dir],
+            q,
+            path_label="quarantine path",
+        )
+        dest = q / (_relative_to_permitted_root(s, permitted_roots) or s.name)
+        log_operation(
+            audit_log,
+            "fs_quarantine",
+            dry_run,
+            **_audit_entry_without_dry_run(result),
+        )
         if dest.exists():
             result["error"] = "destination exists in quarantine; aborted"
         else:
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(s), str(dest))
-            result["ok"] = True
-
-    log_kwargs = {k: v for k, v in result.items() if k != "dry_run"}
-    log_operation(audit_log, "fs_quarantine", dry_run, **log_kwargs)
+            s = revalidate_resolved(
+                path, permitted_roots, s, path_label="source path", reject_root=True
+            )
+            q = revalidate_resolved(
+                quarantine_dir,
+                permitted_roots + [quarantine_dir],
+                q,
+                path_label="quarantine path",
+            )
+            dest = q / (_relative_to_permitted_root(s, permitted_roots) or s.name)
+            if dest.exists():
+                result["error"] = "destination exists in quarantine; aborted"
+            else:
+                shutil.move(str(s), str(dest))
+                result["ok"] = True
     return result
+
+
+def _relative_to_permitted_root(path: Path, permitted_roots: list[str]) -> Path | None:
+    for root in permitted_roots:
+        rp = Path(root).resolve(strict=False)
+        try:
+            return path.relative_to(rp)
+        except ValueError:
+            continue
+    return None

@@ -22,7 +22,8 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 ## Safety model
 
 - **Move-only / no delete**: quarantine instead of delete everywhere.
-- **Dry-run by default**: every file tool returns a plan unless you pass `confirm=true`.
+- **Dry-run by default**: mutating tools honor `DRY_RUN_DEFAULT` (true by default) unless you
+  pass `dry_run=false`.
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
@@ -57,7 +58,7 @@ docker run -d \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
   -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
-  ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
+  ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest
 ```
 
 ### docker compose
@@ -102,10 +103,11 @@ the example above assumes the MCP server itself is at `192.168.1.100`.
 | `ABS_LIBRARY_ITEMS_LIMIT` | — | `5000` | Maximum number of items requested per library listing call |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
-| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request via the HTTP Authorization header; the server refuses to start without it. Only `/health` is public. |
-| `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
+| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
+| `DRY_RUN_DEFAULT` | — | `true` | Default `dry_run` value for mutating tools when omitted |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact Host values, e.g. `192.168.1.100:8000,librarian.lan:8000`; no wildcards, URLs, or paths |
+| `COVER_URL_ALLOWED_HOSTS` | — | empty | Additional comma-separated exact hosts or IPs allowed for `set_cover` URLs even when they resolve to private, loopback, or link-local addresses |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
 | `BLOB_HOURS_THRESHOLD` | — | `6.0` | `detect_blobs` hours threshold (overridable per-call) |
 | `BLOB_FILE_COUNT_THRESHOLD` | — | `10` | `detect_blobs` file-count threshold (overridable per-call) |
@@ -147,16 +149,25 @@ Bulk metadata update. Each update: `{id, title?, authors?, narrators?, series?, 
 Batch quick-match against Audible (default) or another provider.
 
 ### `set_cover(item_id, url? | search_title?, search_author?, provider?)`
-Set a cover from a URL or from a provider cover search.
+Set a cover from a URL or from a provider cover search. Direct and provider-returned
+URLs must use HTTP or HTTPS and must not resolve to private, loopback, or link-local
+addresses unless the host is explicitly allowlisted in `COVER_URL_ALLOWED_HOSTS`.
 
 ### `scan_library(library_id)`
 Trigger an ABS library scan.
 
-### `list_missing(library_id)` / `purge_missing(library_id, confirm?)`
+### `list_missing(library_id)` / `purge_missing(library_id, dry_run?)`
 List or delete ABS records for missing items (files already gone; does not touch disk).
+Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a
+compatibility alias for `dry_run=false`.
 
-### `create_backup()`
-Trigger an ABS backup.
+### `delete_item(item_id, dry_run?)`
+Delete a single ABS item record. Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true`
+remains accepted as a compatibility alias for `dry_run=false`.
+
+### `create_backup(dry_run?)`
+Trigger an ABS backup. Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true` remains
+accepted as a compatibility alias for `dry_run=false`.
 
 ### `fs_tree(path, max_depth?)`
 Folder tree with audio-file counts and sizes (depth-limited, default 3).
@@ -164,17 +175,21 @@ Folder tree with audio-file counts and sizes (depth-limited, default 3).
 ### `detect_blobs(path, hours_threshold?, file_count_threshold?)`
 Heuristic scan: flags items above the hour or file-count threshold and notes which have disc subfolders.
 
-### `fs_make_book_folders(path, confirm?)`
-Splits a blob folder: each loose audio file → own named subfolder. Dry-run unless `confirm=true`.
+### `fs_make_book_folders(path, dry_run?)`
+Splits a blob folder: each loose audio file → own named subfolder. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_flatten(path, confirm?)`
-Merges disc/CD/part subfolders into the parent with prefixed filenames. Dry-run unless `confirm=true`.
+### `fs_flatten(path, dry_run?)`
+Merges disc/CD/part subfolders into the parent with prefixed filenames. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_move(src, dest, confirm?)`
-Moves a file or folder within the library. No overwrite. Dry-run unless `confirm=true`.
+### `fs_move(src, dest, dry_run?)`
+Moves a file or folder within the library. No overwrite. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_quarantine(path, confirm?)`
-Moves a file or folder to quarantine, preserving relative structure. Dry-run unless `confirm=true`.
+### `fs_quarantine(path, dry_run?)`
+Moves a file or folder to quarantine, preserving relative structure. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
 ## Example prompts
 
@@ -211,7 +226,7 @@ to the MCP v2 API.
 The `dev` extra installs pytest, pytest-asyncio, and Ruff, matching the CI setup.
 
 ```bash
-git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
 python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
