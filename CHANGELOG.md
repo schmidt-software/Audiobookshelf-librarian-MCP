@@ -6,6 +6,9 @@
 - `batch_update_metadata` now keeps its series cache per library, refreshes it after
   series updates so newly created series are reused, and invalidates stale cache
   entries instead of sharing one process-wide series map across all libraries (#19).
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
