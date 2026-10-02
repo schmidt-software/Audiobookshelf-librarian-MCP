@@ -205,13 +205,18 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 
 To run from source instead of the container:
 
+Install the `dev` extra to include pytest, pytest-asyncio, and Ruff, as used in CI.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
 python -m abs_librarian
 
 # Run tests
 pytest
+
+# Lint
+ruff check src/ tests/
 ```

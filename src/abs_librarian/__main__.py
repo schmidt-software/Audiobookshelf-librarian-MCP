@@ -5,6 +5,7 @@ import sys
 import uvicorn
 from starlette.responses import JSONResponse
 
+from . import __version__
 from .auth import BearerTokenMiddleware
 from .server import cfg, mcp
 
@@ -16,7 +17,7 @@ _mcp_app = BearerTokenMiddleware(mcp.streamable_http_app(), cfg.mcp_token)
 
 async def app(scope, receive, send):
     if scope["type"] == "http" and scope.get("path") == "/health":
-        response = JSONResponse({"status": "ok", "version": "0.1.0"})
+        response = JSONResponse({"status": "ok", "version": __version__})
         await response(scope, receive, send)
     else:
         # FastMCP rejects non-localhost Host headers (DNS-rebinding protection).
