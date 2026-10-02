@@ -167,6 +167,12 @@ Quarantine /audiobooks/Author Name/Series Book 1 (mp3 copy) — confirm.
 
 ## Development
 
+The package version is defined only in `src/abs_librarian/__init__.py`.
+Hatch reads this value to generate distribution metadata, and `/health` reports
+the same value for both installed packages and source-only Docker deployments.
+Update `__version__` when releasing a new version; no runtime metadata lookup or
+fallback version is needed.
+
 Python and Docker installations require `mcp[cli]>=1.0,<2` because the server uses the
 v1 `mcp.server.fastmcp.FastMCP` API. Keep this upper bound until the server is migrated
 to the MCP v2 API.
