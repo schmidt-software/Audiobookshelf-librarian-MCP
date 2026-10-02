@@ -6,6 +6,11 @@
 - File-system mutations now fail closed if the audit log cannot be written. The
   server logs a loud stderr error and aborts before changing files, preserving
   the audit trail guarantee (#18).
+- `batch_update_metadata` now keeps its series cache per library, refreshes it after
+  series updates so newly created series are reused, and invalidates stale cache
+  entries instead of sharing one process-wide series map across all libraries (#19).
+- Updated repository and container image references throughout the docs, Compose file, Unraid template, and package metadata to point at `schmidt-software/Audiobookshelf-librarian-MCP` and `ghcr.io/schmidt-software/audiobookshelf-librarian-mcp` (#25).
+
 - Added the missing `abs_librarian.__main__.main()` console entry point so the
   installed `abs-librarian-mcp` command now starts uvicorn with the same host,
   port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
