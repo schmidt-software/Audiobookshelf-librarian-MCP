@@ -3,6 +3,7 @@
 import uvicorn
 from starlette.responses import JSONResponse
 
+from . import __version__
 from .server import cfg, mcp
 
 # Use FastMCP's own ASGI app so its lifespan (task group) initialises correctly.
@@ -12,7 +13,7 @@ _mcp_app = mcp.streamable_http_app()
 
 async def app(scope, receive, send):
     if scope["type"] == "http" and scope.get("path") == "/health":
-        response = JSONResponse({"status": "ok", "version": "0.1.0"})
+        response = JSONResponse({"status": "ok", "version": __version__})
         await response(scope, receive, send)
     else:
         # FastMCP rejects non-localhost Host headers (DNS-rebinding protection).
