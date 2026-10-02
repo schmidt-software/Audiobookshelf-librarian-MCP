@@ -5,6 +5,11 @@ Rules:
   - Must resolve to a real path (no traversal via ..)
   - Must not be or pass through a symlink that exits the jail
   - Must sit under at least one configured library root OR the quarantine dir
+
+Mutating tools perform an additional same-target revalidation immediately before
+filesystem changes. This narrows, but cannot fully eliminate, final TOCTOU races
+while Python still relies on high-level path-based APIs instead of dirfd/openat
+primitives.
 """
 
 from __future__ import annotations
@@ -46,6 +51,37 @@ def resolve_safe(raw: str, permitted_roots: list[str]) -> Path:
     )
 
 
+def resolve_mutation_source(raw: str, permitted_roots: list[str]) -> Path:
+    """Resolve a mutation source and reject the jail root itself."""
+    candidate = resolve_safe(raw, permitted_roots)
+    for root in _resolved_roots(permitted_roots):
+        if candidate == root:
+            raise PathJailError(f"Path {raw!r} resolves to jail root {root} and cannot be mutated")
+    return candidate
+
+
+def revalidate_resolved(
+    raw: str,
+    permitted_roots: list[str],
+    expected: Path,
+    *,
+    path_label: str = "path",
+    reject_root: bool = False,
+) -> Path:
+    """Re-resolve *raw* and require the same safe target as the earlier check."""
+    current = (
+        resolve_mutation_source(raw, permitted_roots)
+        if reject_root
+        else resolve_safe(raw, permitted_roots)
+    )
+    if current != expected:
+        raise PathJailError(
+            f"{path_label.capitalize()} {raw!r} changed after validation "
+            f"(expected {expected}, now {current})"
+        )
+    return current
+
+
 def _check_no_escaping_symlinks(path: Path, permitted_roots: list[str]) -> None:
     """Walk path components; if any existing part is a symlink, verify it resolves inside a root."""
     parts = list(path.parts)
@@ -68,3 +104,13 @@ def _is_inside(path: Path, root: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _resolved_roots(permitted_roots: list[str]) -> list[Path]:
+    roots: list[Path] = []
+    for root in permitted_roots:
+        try:
+            roots.append(Path(root).resolve(strict=False))
+        except (OSError, ValueError):
+            continue
+    return roots

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Security
+- Hardened file-system mutation jail checks: `fs_move` and `fs_quarantine` now reject the
+  library root itself (including aliases that resolve to it) as a source, and they re-resolve
+  the source/destination immediately before mutating the filesystem to narrow TOCTOU races. The
+  remaining race window of Python's path-based APIs is documented in the jail module.
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
