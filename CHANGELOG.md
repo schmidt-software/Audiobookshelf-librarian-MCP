@@ -10,6 +10,9 @@
 - Restricted `set_cover` URLs to HTTP/HTTPS and blocked private, loopback, and
   link-local hosts by default. Added `COVER_URL_ALLOWED_HOSTS` for exact host/IP
   allowlisting when an internal cover source is intentionally required.
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
