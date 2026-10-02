@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Removed blanket Host-header rewriting. MCP v1 SDK transport security now
+  validates exact trusted hosts, with explicit LAN opt-in via `MCP_ALLOWED_HOSTS`.
+  Localhost health checks and SDK Origin validation are preserved.
+
 ## [0.2.11] - 2026-06-12
 
 ### Added

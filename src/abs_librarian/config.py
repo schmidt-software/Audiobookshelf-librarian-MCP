@@ -3,7 +3,30 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
+from ipaddress import IPv6Address
+
+
+def _trusted_hosts(raw: str) -> list[str]:
+    """Parse exact Host values; never pass wildcard patterns to the SDK."""
+    if not raw.strip():
+        return []
+    hosts = [value.strip() for value in raw.split(",")]
+    for host in hosts:
+        match = re.fullmatch(
+            r"(?P<host>\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9][a-zA-Z0-9.-]*)"
+            r"(?::(?P<port>[0-9]+))?",
+            host,
+        )
+        if not match:
+            raise ValueError("MCP_ALLOWED_HOSTS must contain exact hosts with optional ports")
+        name = match.group("host")
+        if name.startswith("["):
+            IPv6Address(name[1:-1])
+        if match.group("port") is not None and not 1 <= int(match.group("port")) <= 65535:
+            raise ValueError("MCP_ALLOWED_HOSTS ports must be between 1 and 65535")
+    return list(dict.fromkeys(hosts))
 
 
 @dataclass
@@ -19,6 +42,12 @@ class Config:
     # detect_blobs defaults (overridable per-call)
     blob_hours_threshold: float
     blob_file_count_threshold: int
+    mcp_allowed_hosts: list[str] = field(default_factory=list)
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        loopback = ["localhost", "127.0.0.1", "[::1]"]
+        return loopback + [f"{host}:{self.port}" for host in loopback] + self.mcp_allowed_hosts
 
     @classmethod
     def from_env(cls) -> Config:
@@ -46,4 +75,5 @@ class Config:
             audit_log=audit_log,
             blob_hours_threshold=blob_hours,
             blob_file_count_threshold=blob_files,
+            mcp_allowed_hosts=_trusted_hosts(os.environ.get("MCP_ALLOWED_HOSTS", "")),
         )

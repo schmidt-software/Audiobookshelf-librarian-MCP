@@ -26,6 +26,7 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
+- **DNS rebinding protection**: MCP requests retain their original Host header and must match an explicit trusted-host allowlist. SDK Origin checks remain enabled.
 
 ## Quick start
 
@@ -44,6 +45,7 @@ docker run -d \
   -e LIBRARY_ROOTS=/audiobooks \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
+  -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
   ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
 ```
 
@@ -77,6 +79,8 @@ In Claude Desktop (`claude_desktop_config.json`) or the Claude web app (Settings
 ```
 
 Replace `YOUR-SERVER-IP` and `YOUR_MCP_TOKEN` with your values.
+Set `MCP_ALLOWED_HOSTS` to the exact server address and port in the connector URL;
+the example above assumes the MCP server itself is at `192.168.1.100`.
 
 ## Configuration (environment variables)
 
@@ -89,9 +93,29 @@ Replace `YOUR-SERVER-IP` and `YOUR_MCP_TOKEN` with your values.
 | `MCP_TOKEN` | ✅ | — | Bearer token for Claude to authenticate |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
+| `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact Host values, e.g. `192.168.1.100:8000,librarian.lan:8000`; no wildcards, URLs, or paths |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
 | `BLOB_HOURS_THRESHOLD` | — | `6.0` | `detect_blobs` hours threshold (overridable per-call) |
 | `BLOB_FILE_COUNT_THRESHOLD` | — | `10` | `detect_blobs` file-count threshold (overridable per-call) |
+
+### Trusted hosts for LAN deployment
+
+By default, `/mcp` trusts only `localhost`, `127.0.0.1`, and `[::1]`, either bare
+or with the configured `PORT`. For LAN clients, explicitly add the **server's**
+IP or hostname and the externally visible port to `MCP_ALLOWED_HOSTS`. For
+example, a Docker mapping `9000:8000` needs `192.168.1.100:9000`, not the container
+port. Bare entries allow only a Host header without a port; IPv6 must be bracketed.
+Entries match exactly; wildcards are rejected at startup. Restart after changes.
+
+Reverse proxies must forward an explicitly trusted Host value; do not normalize
+arbitrary incoming hosts to localhost. Trust only server names you control.
+This allowlist is not authentication or a firewall: keep access on a trusted
+network. Requests without an Origin header (typical non-browser MCP clients) can
+use explicitly trusted LAN hosts. A supplied Origin still must match the SDK's
+localhost HTTP Origin policy; adding a LAN Host does **not** trust browser origins.
+Untrusted Hosts return HTTP 421; untrusted Origins return HTTP 403.
+The standalone `/health` route remains available for localhost container checks
+and is not an MCP endpoint.
 
 ## Tool reference
 
