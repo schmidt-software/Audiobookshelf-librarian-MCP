@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -34,10 +33,6 @@ mcp = FastMCP(
         allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
     ),
 )
-
-if cfg.mcp_token:
-    # FastMCP bearer-token auth: set via env so the framework picks it up
-    os.environ.setdefault("MCP_AUTH_TOKEN", cfg.mcp_token)
 
 
 def _client() -> ABSClient:

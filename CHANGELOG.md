@@ -6,6 +6,29 @@
 - Removed blanket Host-header rewriting. MCP v1 SDK transport security now
   validates exact trusted hosts, with explicit LAN opt-in via `MCP_ALLOWED_HOSTS`.
   Localhost health checks and SDK Origin validation are preserved.
+- Constrained Python and Docker dependencies to the compatible MCP v1 SDK
+  (`mcp[cli]>=1.12,<2`), including the transport-security API requirement (#1, #5).
+- Made `/health` report the canonical package version in installed-package and
+  source-only Docker deployments. Hatch reads the same version source (#3).
+
+### Security
+- MCP authentication is now actually enforced. Previously `MCP_TOKEN` was only copied into an
+  unused `MCP_AUTH_TOKEN` environment variable, so every tool was reachable without credentials.
+  All MCP HTTP requests now require `Authorization: Bearer <MCP_TOKEN>` (constant-time
+  comparison) and are rejected with HTTP 401 otherwise; `/health` stays public.
+- Fail closed: the server refuses to start when `MCP_TOKEN` is empty, and the auth layer rejects
+  every MCP request (HTTP 503) if it is ever constructed without a token.
+- Validated all Audiobookshelf item and library IDs before HTTP requests and
+  encoded accepted path IDs as single segments. Batch validation prevents partial
+  updates when an invalid ID occurs in a later chunk (#6).
+
+### Added
+- Defined a `dev` extra containing pytest, pytest-asyncio, and Ruff; aligned CI and
+  developer installation instructions with the declared dependencies (#2).
+- Added an independent Docker image build to CI for main pushes and pull requests,
+  without publishing images or requiring registry credentials (#7).
+- Added regression coverage for dependency compatibility, version reporting,
+  authentication, trusted Hosts and Origins, and API identifier validation.
 
 ## [0.2.11] - 2026-06-12
 
@@ -63,10 +86,10 @@
 ### Fixed
 - `find_items` and `library_overview` now return authors and series correctly by passing `include=authors,series` to the ABS library items endpoint
 
-## [Unreleased]
+## Initial release
 
 ### Added
-- Initial release: all v1 tools from the project brief
+- All v1 tools from the project brief
 - ABS API tools: `library_overview`, `find_items`, `get_item`, `batch_update_metadata`, `quick_match`, `set_cover`, `scan_library`, `list_missing`, `purge_missing`, `create_backup`
 - File-system tools: `fs_tree`, `detect_blobs`, `fs_make_book_folders`, `fs_flatten`, `fs_move`, `fs_quarantine`
 - Path jail, audit log, dry-run-by-default safety model

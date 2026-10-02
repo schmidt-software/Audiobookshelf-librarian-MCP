@@ -37,7 +37,7 @@
 
   <Config Name="ABS_TOKEN" Target="ABS_TOKEN" Default="" Description="Audiobookshelf API token (Settings - Users - your user - API Token)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
 
-  <Config Name="MCP_TOKEN" Target="MCP_TOKEN" Default="" Description="Bearer token Claude uses to connect to this MCP server (generate a long random string)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="MCP_TOKEN" Target="MCP_TOKEN" Default="" Description="Bearer token Claude must send to connect to this MCP server (required; the server will not start without it). Generate a long random string, e.g. openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="false"></Config>
 
   <Config Name="MCP_ALLOWED_HOSTS" Target="MCP_ALLOWED_HOSTS" Default="" Description="Additional exact comma-separated server Host values, e.g. 192.168.1.100:8000,librarian.lan:8000. Use the mapped host port. Empty allows only loopback; no schemes, paths, or wildcards. Origin checks stay enabled." Type="Variable" Display="always" Required="false" Mask="false"></Config>
 

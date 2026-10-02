@@ -3,11 +3,32 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 AUDIBLE = "audible"
 _BATCH_SIZE = 100
+
+
+def _validate_id(value: str, name: str) -> str:
+    """Accept opaque raw IDs, but never URL syntax or pre-encoded input."""
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(char in value for char in "/\\%?#")
+        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value)
+    ):
+        raise ValueError(
+            f"Invalid {name}: expected a non-empty raw ID without dot segments, "
+            "path/query/fragment delimiters, percent escapes, or control characters"
+        )
+    return value
+
+
+def _id_segment(value: str, name: str) -> str:
+    return quote(_validate_id(value, name), safe="")
 
 
 class ABSClient:
@@ -61,6 +82,7 @@ class ABSClient:
         return data.get("libraries", [])
 
     async def get_library_items(self, library_id: str) -> list[dict]:
+        library_id = _id_segment(library_id, "library_id")
         data = await self._get(f"/api/libraries/{library_id}/items", limit=0)
         return data.get("results", [])
 
@@ -69,13 +91,17 @@ class ABSClient:
     # ------------------------------------------------------------------
 
     async def get_item(self, item_id: str) -> dict:
+        item_id = _id_segment(item_id, "item_id")
         return await self._get(f"/api/items/{item_id}", expanded=1)
 
     async def patch_item_metadata(self, item_id: str, metadata: dict) -> dict:
+        item_id = _id_segment(item_id, "item_id")
         return await self._patch(f"/api/items/{item_id}/media", {"metadata": metadata})
 
     async def batch_update(self, updates: list[dict]) -> list[dict]:
         """Send updates in chunks of _BATCH_SIZE. Returns list of per-item results."""
+        for update in updates:
+            _validate_id(update.get("id"), "item_id")
         results: list[dict] = []
         for i in range(0, len(updates), _BATCH_SIZE):
             chunk = updates[i : i + _BATCH_SIZE]
@@ -91,6 +117,8 @@ class ABSClient:
         override_cover: bool = False,
         override_details: bool = False,
     ) -> dict:
+        for item_id in item_ids:
+            _validate_id(item_id, "item_id")
         body = {
             "options": {
                 "provider": provider,
@@ -110,6 +138,7 @@ class ABSClient:
         return data if isinstance(data, list) else data.get("results", [])
 
     async def set_cover_url(self, item_id: str, url: str) -> dict:
+        item_id = _id_segment(item_id, "item_id")
         return await self._post(f"/api/items/{item_id}/cover", {"url": url})
 
     # ------------------------------------------------------------------
@@ -117,6 +146,7 @@ class ABSClient:
     # ------------------------------------------------------------------
 
     async def scan_library(self, library_id: str) -> dict:
+        library_id = _id_segment(library_id, "library_id")
         return await self._post(f"/api/libraries/{library_id}/scan")
 
     async def get_library_items_missing(self, library_id: str) -> list[dict]:
@@ -125,6 +155,7 @@ class ABSClient:
 
     async def delete_item(self, item_id: str) -> dict:
         """Deletes an item *record* from ABS (used only for confirmed missing items)."""
+        item_id = _id_segment(item_id, "item_id")
         return await self._delete(f"/api/items/{item_id}")
 
     async def create_backup(self) -> dict:
@@ -135,5 +166,6 @@ class ABSClient:
     # ------------------------------------------------------------------
 
     async def get_series(self, library_id: str) -> list[dict]:
+        library_id = _id_segment(library_id, "library_id")
         data = await self._get(f"/api/libraries/{library_id}/series", limit=0)
         return data.get("results", [])

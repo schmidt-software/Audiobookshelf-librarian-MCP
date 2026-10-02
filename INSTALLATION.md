@@ -195,7 +195,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `ABS_TOKEN` | ✅ | — | ABS API token |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
-| `MCP_TOKEN` | ✅ | — | Bearer token Claude uses to authenticate |
+| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
@@ -213,6 +213,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `/mcp` returns 403 | Untrusted Origin | Adding a Host does not relax SDK Origin checks; use a non-browser MCP client without an Origin header |
 | `/health` returns `{"status": "error"}` | Server can't reach Audiobookshelf | Check `ABS_URL` is reachable from the container and `ABS_TOKEN` is valid |
 | Claude shows no tools / 401 | Token mismatch | Ensure the `Authorization: Bearer` value exactly equals `MCP_TOKEN` |
+| Container exits with `MCP_TOKEN must be set` | `MCP_TOKEN` is empty | Set `MCP_TOKEN` to a long random secret; the server will not run unauthenticated |
 | File tools say a path is rejected | Path jail | The path must live under `LIBRARY_ROOTS`; no `..`, symlinks out of the jail, or outside paths |
 | File tools run but find nothing | Mount mismatch | The host path mounted as `/audiobooks` must be the same files Audiobookshelf indexes |
 | Connector can't connect | Wrong port | Use the **host** port you actually mapped (the default is `8000`) |
@@ -223,13 +224,18 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 
 To run from source instead of the container:
 
+Install the `dev` extra to include pytest, pytest-asyncio, and Ruff, as used in CI.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
 python -m abs_librarian
 
 # Run tests
 pytest
+
+# Lint
+ruff check src/ tests/
 ```
