@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .abs_client import AUDIBLE, ABSClient
+from .audit import AuditLogError
 from .config import Config
 from .fs_tools import (
     detect_blobs,
@@ -424,7 +425,7 @@ async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
     """
     try:
         return fs_make_book_folders(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+    except (AuditLogError, PathJailError) as e:
         return {"error": str(e)}
 
 
@@ -440,7 +441,7 @@ async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
     """
     try:
         return fs_flatten(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+    except (AuditLogError, PathJailError) as e:
         return {"error": str(e)}
 
 

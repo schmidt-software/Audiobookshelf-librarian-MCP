@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Fixed
+- File-system mutations now fail closed if the audit log cannot be written. The
+  server logs a loud stderr error and aborts before changing files, preserving
+  the audit trail guarantee (#18).
 - `batch_update_metadata` now keeps its series cache per library, refreshes it after
   series updates so newly created series are reused, and invalidates stale cache
   entries instead of sharing one process-wide series map across all libraries (#19).
