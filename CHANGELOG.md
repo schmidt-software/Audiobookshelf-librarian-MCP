@@ -6,6 +6,9 @@
 - Mutating tools now honor `DRY_RUN_DEFAULT` when `dry_run` is omitted, including ABS
   delete/backup actions and file-system moves. Added `dry_run` regression coverage while
   keeping `confirm=true` as a compatibility alias for execution.
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
