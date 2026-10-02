@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 async def test_health_reports_package_version(monkeypatch):
     monkeypatch.setenv("ABS_URL", "http://abs.example")
     monkeypatch.setenv("ABS_TOKEN", "test-token")
+    monkeypatch.setenv("MCP_TOKEN", "health-test-token")
+    monkeypatch.setenv("PORT", "8000")
     app = importlib.import_module("abs_librarian.__main__").app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as client:
@@ -78,6 +80,8 @@ asyncio.run(check())
             "PYTHONPATH": str(ROOT / "src"),
             "ABS_URL": "http://abs.example",
             "ABS_TOKEN": "test-token",
+            "MCP_TOKEN": "health-test-token",
+            "PORT": "8000",
         },
         capture_output=True,
         text=True,
