@@ -23,7 +23,11 @@ async def app(scope, receive, send):
         await _mcp_app(scope, receive, send)
 
 
-if __name__ == "__main__":
+def main() -> None:
     if not cfg.mcp_token.strip():
         sys.exit("MCP_TOKEN must be set to a non-empty secret; refusing to start.")
     uvicorn.run(app, host="0.0.0.0", port=cfg.port)
+
+
+if __name__ == "__main__":
+    main()

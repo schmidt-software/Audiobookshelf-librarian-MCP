@@ -7,6 +7,10 @@
   library root itself (including aliases that resolve to it) as a source, and they re-resolve
   the source/destination immediately before mutating the filesystem to narrow TOCTOU races. The
   remaining race window of Python's path-based APIs is documented in the jail module.
+### Fixed
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
