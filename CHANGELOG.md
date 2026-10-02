@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- Added regression tests for `server.py` tool wrappers and direct coverage for
+  `fs_move`, `fs_quarantine`, and `detect_blobs`.
+
+### Fixed
+- Updated batch-update chunk tests to avoid un-awaited mock warnings and kept
+  audit-log test writes inside the pytest temporary workspace.
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes

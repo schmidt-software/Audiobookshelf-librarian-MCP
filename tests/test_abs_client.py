@@ -33,20 +33,20 @@ async def test_get_libraries(client):
 async def test_batch_update_chunks(client):
     """batch_update must split into chunks of 100."""
     items = [{"id": str(i)} for i in range(250)]
-    call_bodies = []
+    posted_chunks = []
 
-    async def fake_post(url, headers, json):
-        call_bodies.append(json)
-        r = MagicMock()
-        r.json.return_value = json  # echo back
-        r.content = b"[]"
-        r.raise_for_status = lambda: None
-        return r
+    async def fake_post(path, body=None):
+        posted_chunks.append((path, body))
+        return body
 
-    with patch("httpx.AsyncClient.post", side_effect=fake_post):
-        await client.batch_update(items)
+    with patch.object(client, "_post", new=AsyncMock(side_effect=fake_post)) as mock_post:
+        result = await client.batch_update(items)
 
-    assert len(call_bodies) == 3  # 100 + 100 + 50
+    assert len(posted_chunks) == 3  # 100 + 100 + 50
+    assert [path for path, _ in posted_chunks] == ["/api/items/batch/update"] * 3
+    assert [len(body) for _, body in posted_chunks] == [100, 100, 50]
+    assert result == items
+    assert mock_post.await_count == 3
 
 
 @pytest.mark.asyncio
