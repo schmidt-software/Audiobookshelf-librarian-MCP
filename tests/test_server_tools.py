@@ -30,13 +30,13 @@ async def test_health_returns_ok_with_library_count(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_health_returns_error_details(monkeypatch):
+async def test_health_returns_sanitized_error(monkeypatch):
     client = SimpleNamespace(get_libraries=AsyncMock(side_effect=RuntimeError("ABS offline")))
     monkeypatch.setattr(server_module, "_client", lambda: client)
 
     result = await server_module.health()
 
-    assert result == {"status": "error", "detail": "ABS offline"}
+    assert result == {"status": "error", "detail": "Audiobookshelf connectivity failed"}
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_batch_update_metadata_resolves_series_and_builds_payload(monkeypa
         ],
     )
 
-    client.get_series.assert_awaited_once_with("library-1")
+    client.get_series.assert_awaited_with("library-1")
     client.batch_update.assert_awaited_once_with(
         [
             {

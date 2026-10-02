@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .abs_client import AUDIBLE, ABSClient
+from .audit import AuditLogError
 from .config import Config
 from .fs_tools import (
     detect_blobs,
@@ -19,9 +21,11 @@ from .fs_tools import (
 )
 from .jail import PathJailError
 from .metadata import SeriesCache, build_metadata_payload
+from .url_security import validate_cover_url
 
 cfg = Config.from_env()
 _series_cache = SeriesCache()
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     "Audiobookshelf Librarian",
@@ -54,8 +58,9 @@ async def health() -> dict:
     try:
         libs = await client.get_libraries()
         return {"status": "ok", "abs_libraries": len(libs)}
-    except Exception as exc:
-        return {"status": "error", "detail": str(exc)}
+    except Exception:
+        logger.exception("Audiobookshelf health check failed")
+        return {"status": "error", "detail": "Audiobookshelf connectivity failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -215,19 +220,20 @@ async def batch_update_metadata(
     """
     client = _client()
 
-    # Seed series cache for this library if not already done
-    if not _series_cache._cache:
+    if not _series_cache.has_library(library_id):
         existing = await client.get_series(library_id)
-        _series_cache.seed(existing)
+        _series_cache.seed(library_id, existing)
 
     payloads = []
+    series_updates_present = False
     for u in updates:
         item_id = u["id"]
         series_raw = u.get("series")
         resolved_series = None
         if series_raw is not None:
+            series_updates_present = True
             resolved_series = [
-                _series_cache.resolve(s["name"], s.get("sequence", ""))
+                _series_cache.resolve(library_id, s["name"], s.get("sequence", ""))
                 for s in series_raw
             ]
         meta = build_metadata_payload(
@@ -241,6 +247,9 @@ async def batch_update_metadata(
         payloads.append({"id": item_id, "mediaPayload": {"metadata": meta}})
 
     results = await client.batch_update(payloads)
+    if series_updates_present:
+        _series_cache.invalidate(library_id)
+        _series_cache.seed(library_id, await client.get_series(library_id))
     return {"updated": len(payloads), "results": results}
 
 
@@ -276,6 +285,10 @@ async def set_cover(
     """Set a cover from a URL, or search a provider and use the first result."""
     client = _client()
     if url:
+        try:
+            validate_cover_url(url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, url)
         return {"item_id": item_id, "source": "url", "result": result}
     if search_title:
@@ -289,6 +302,10 @@ async def set_cover(
             first_url = first.get("image") or first.get("url")
         if not first_url:
             return {"error": "unexpected cover format", "raw": first}
+        try:
+            validate_cover_url(first_url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, first_url)
         return {"item_id": item_id, "source": "search", "cover_url": first_url, "result": result}
     return {"error": "provide url or search_title"}
@@ -420,7 +437,7 @@ async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
     """
     try:
         return fs_make_book_folders(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+    except (AuditLogError, PathJailError) as e:
         return {"error": str(e)}
 
 
@@ -436,7 +453,7 @@ async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
     """
     try:
         return fs_flatten(path, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+    except (AuditLogError, PathJailError) as e:
         return {"error": str(e)}
 
 
