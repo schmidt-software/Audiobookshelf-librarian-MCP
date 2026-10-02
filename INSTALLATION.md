@@ -42,7 +42,7 @@ Paste a prompt like the one below, filling in your own values:
 ```
 Please install the Audiobookshelf Librarian MCP server for me.
 
-Repo: https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+Repo: https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 
 My setup:
 - Audiobookshelf URL: http://192.168.1.100:13378
@@ -53,7 +53,7 @@ My setup:
 
 Read the repo's README and docker-compose.yml, then:
 1. Generate a strong MCP_TOKEN for me.
-2. Deploy the ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest container
+2. Deploy the ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest container
    with the correct volume mounts and environment variables. Set MCP_ALLOWED_HOSTS
    to my exact MCP server LAN address and mapped port; do not use wildcards
    or disable the SDK Host/Origin checks.
@@ -89,7 +89,7 @@ docker run -d \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
   -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
-  ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
+  ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest
 ```
 
 ### Method 2 — Docker Compose
@@ -97,7 +97,7 @@ docker run -d \
 1. Clone the repo (or just copy `docker-compose.yml` and `.env.example`):
 
    ```bash
-   git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+   git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
    cd Audiobookshelf-librarian-MCP
    ```
 
@@ -227,7 +227,7 @@ To run from source instead of the container:
 Install the `dev` extra to include pytest, pytest-asyncio, and Ruff, as used in CI.
 
 ```bash
-git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
 python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
