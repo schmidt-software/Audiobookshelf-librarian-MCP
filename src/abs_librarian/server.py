@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .abs_client import AUDIBLE, ABSClient
 from .config import Config
@@ -25,6 +26,12 @@ _series_cache = SeriesCache()
 mcp = FastMCP(
     "Audiobookshelf Librarian",
     stateless_http=True,
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=cfg.trusted_hosts,
+        # Preserve the SDK's localhost Origin policy independently of LAN Host trust.
+        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+    ),
 )
 
 

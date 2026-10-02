@@ -47,13 +47,16 @@ Repo: https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 My setup:
 - Audiobookshelf URL: http://192.168.1.100:13378
 - Audiobookshelf API token: <paste your ABS_TOKEN>
+- MCP server LAN address and mapped port: 192.168.1.100:8000
 - Audiobook library path on this host: /mnt/user/audiobooks
 - Where to put quarantined files: /mnt/user/quarantine
 
 Read the repo's README and docker-compose.yml, then:
 1. Generate a strong MCP_TOKEN for me.
 2. Deploy the ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest container
-   with the correct volume mounts and environment variables.
+   with the correct volume mounts and environment variables. Set MCP_ALLOWED_HOSTS
+   to my exact MCP server LAN address and mapped port; do not use wildcards
+   or disable the SDK Host/Origin checks.
 3. Verify it's healthy by hitting the /health endpoint.
 4. Give me the exact Claude connector config (URL + Authorization header)
    so I can add it to Claude Desktop / the web app.
@@ -85,6 +88,7 @@ docker run -d \
   -e LIBRARY_ROOTS=/audiobooks \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
+  -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
   ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
 ```
 
@@ -101,7 +105,7 @@ docker run -d \
 
    ```bash
    cp .env.example .env
-   # then edit .env — set ABS_URL, ABS_TOKEN, MCP_TOKEN, and confirm the paths
+   # then edit .env — set ABS_URL, ABS_TOKEN, MCP_TOKEN, MCP_ALLOWED_HOSTS, and the paths
    ```
 
 3. Confirm the volume paths in `docker-compose.yml` match your host (the `/mnt/user/...` lines), then start it:
@@ -118,6 +122,7 @@ docker run -d \
    - **ABS_URL** — your Audiobookshelf LAN address.
    - **ABS_TOKEN** — your Audiobookshelf API token.
    - **MCP_TOKEN** — your generated bearer token.
+   - **MCP_ALLOWED_HOSTS** — your MCP server's exact LAN address and mapped host port (for example `192.168.1.100:8000`); not the Audiobookshelf address or client IP.
    - **Audiobooks Path** — the host path of your library (must match what Audiobookshelf uses).
    - **Quarantine Path** — where unwanted files get moved.
 3. Apply to pull the image and start the container.
@@ -144,6 +149,17 @@ Once the container is running, add it as a connector in **Claude Desktop** (`cla
 - Replace `YOUR-SERVER-IP` with your server's LAN IP.
 - Replace `8000` with the host port you mapped, if you changed it.
 - Replace `YOUR_MCP_TOKEN` with the `MCP_TOKEN` you set.
+- Add `YOUR-SERVER-IP:8000` (using your mapped port) to `MCP_ALLOWED_HOSTS` and restart the container. The `docker run` example assumes the MCP server is at `192.168.1.100`.
+
+Only loopback Hosts are trusted by default. For LAN deployment, use exact
+comma-separated server Host values such as `192.168.1.100:9000,librarian.lan:9000`
+for a `9000:8000` port mapping. No schemes, paths, or wildcards are accepted.
+IPv6 values must be bracketed (for example `[fd00::1]:8000`). Reverse proxies must
+forward a trusted Host, not rewrite arbitrary incoming Hosts to localhost.
+The allowlist does not replace authentication or network access restrictions.
+Origin checks remain the SDK's localhost HTTP policy: non-browser clients can
+omit Origin, but adding a LAN Host does not authorize a browser's LAN Origin.
+See [Trusted hosts for LAN deployment](README.md#trusted-hosts-for-lan-deployment).
 
 Restart Claude Desktop (or reload the connector in the web app) and the `abs-librarian` tools will appear.
 
@@ -182,6 +198,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
+| `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
 | `BLOB_HOURS_THRESHOLD` | — | `6.0` | `detect_blobs` hours threshold (overridable per-call) |
 | `BLOB_FILE_COUNT_THRESHOLD` | — | `10` | `detect_blobs` file-count threshold (overridable per-call) |
@@ -192,6 +209,8 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `/mcp` returns 421 | Untrusted Host | Add the exact server IP/hostname and externally mapped port to `MCP_ALLOWED_HOSTS`, then restart |
+| `/mcp` returns 403 | Untrusted Origin | Adding a Host does not relax SDK Origin checks; use a non-browser MCP client without an Origin header |
 | `/health` returns `{"status": "error"}` | Server can't reach Audiobookshelf | Check `ABS_URL` is reachable from the container and `ABS_TOKEN` is valid |
 | Claude shows no tools / 401 | Token mismatch | Ensure the `Authorization: Bearer` value exactly equals `MCP_TOKEN` |
 | Container exits with `MCP_TOKEN must be set` | `MCP_TOKEN` is empty | Set `MCP_TOKEN` to a long random secret; the server will not run unauthenticated |

@@ -19,6 +19,7 @@ services:
       MCP_TOKEN: ${MCP_TOKEN}
       DRY_RUN_DEFAULT: "true"
       PORT: "8000"
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
       AUDIT_LOG: /audiobooks/.abs-librarian-audit.jsonl
       BLOB_HOURS_THRESHOLD: "6.0"
       BLOB_FILE_COUNT_THRESHOLD: "10"

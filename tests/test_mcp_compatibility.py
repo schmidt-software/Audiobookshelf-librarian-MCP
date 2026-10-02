@@ -28,15 +28,15 @@ def test_python_and_docker_require_compatible_mcp():
         value for value in shlex.split(docker_install)[3:] if not value.startswith("--")
     )
 
-    assert python_req == docker_req == Requirement("mcp[cli]>=1.0,<2")
-    for allowed in ("1.0", "1.26.0", "1.999.0"):
+    assert python_req == docker_req == Requirement("mcp[cli]>=1.12,<2")
+    for allowed in ("1.12", "1.26.0", "1.999.0"):
         assert allowed in python_req.specifier
-    for rejected in ("0.9", "2.0", "2.1", "3.0"):
+    for rejected in ("0.9", "1.0", "1.11", "2.0", "2.1", "3.0"):
         assert rejected not in python_req.specifier
 
 
 def test_resolved_mcp_is_compatible():
-    assert version("mcp") in Requirement("mcp[cli]>=1.0,<2").specifier
+    assert version("mcp") in Requirement("mcp[cli]>=1.12,<2").specifier
 
 
 def test_fastmcp_import_and_http_startup():
@@ -65,7 +65,7 @@ with TestClient(app) as client:
             **os.environ,
             "ABS_URL": "http://localhost:13378",
             "ABS_TOKEN": "test-token",
-            "MCP_TOKEN": "",
+            "MCP_TOKEN": "test-token",
             "PORT": "8000",
         },
         capture_output=True,
