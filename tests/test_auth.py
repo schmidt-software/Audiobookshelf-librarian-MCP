@@ -56,6 +56,28 @@ def test_entrypoint_wraps_mcp_app_with_auth():
     assert isinstance(entry._mcp_app, BearerTokenMiddleware)
 
 
+def test_console_script_main_runs_uvicorn(monkeypatch):
+    calls = []
+
+    def fake_run(app, *, host, port):
+        calls.append((app, host, port))
+
+    monkeypatch.setattr(entry.cfg, "mcp_token", TOKEN)
+    monkeypatch.setattr(entry.cfg, "port", 8123)
+    monkeypatch.setattr(entry.uvicorn, "run", fake_run)
+
+    entry.main()
+
+    assert calls == [(entry.app, "0.0.0.0", 8123)]
+
+
+def test_console_script_main_refuses_to_start_without_token(monkeypatch):
+    monkeypatch.setattr(entry.cfg, "mcp_token", "  ")
+
+    with pytest.raises(SystemExit, match="MCP_TOKEN must be set to a non-empty secret"):
+        entry.main()
+
+
 @pytest.fixture(scope="module")
 def client():
     # A FastMCP session manager can only run once per process, so build a fresh MCP app

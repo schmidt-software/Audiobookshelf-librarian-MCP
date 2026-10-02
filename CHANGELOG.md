@@ -8,6 +8,9 @@
 - Library item listing no longer requests unlimited results. `ABS_LIBRARY_ITEMS_LIMIT`
   now caps each library fetch at a configurable default of 5000 items to avoid loading
   entire libraries into memory in one API call.
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
