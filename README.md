@@ -26,6 +26,8 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
+- **TLS at the edge**: terminate HTTPS in a reverse proxy; the built-in server speaks
+  plain HTTP only, so do not send `MCP_TOKEN` over an untrusted network without TLS.
 - **DNS rebinding protection**: MCP requests retain their original Host header and must match an explicit trusted-host allowlist. SDK Origin checks remain enabled.
 - **ABS ID validation**: item and library IDs must be non-empty raw IDs, not URL-encoded
   values. UUID and legacy IDs are supported without requiring a specific format.
@@ -96,6 +98,10 @@ the example above assumes the MCP server itself is at `192.168.1.100`.
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
+| `MCP_AUTH_FAILURE_LIMIT` | — | `5` | Failed auth attempts allowed per client IP inside the rolling window before HTTP 429 backoff starts |
+| `MCP_AUTH_FAILURE_WINDOW_SECONDS` | — | `300` | Rolling window for counting failed auth attempts per client IP |
+| `MCP_AUTH_BACKOFF_SECONDS` | — | `60` | Initial `Retry-After` backoff, doubled on repeated failures inside the window |
+| `MCP_AUTH_MAX_BACKOFF_SECONDS` | — | `900` | Maximum `Retry-After` backoff for repeated failed auth attempts |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact Host values, e.g. `192.168.1.100:8000,librarian.lan:8000`; no wildcards, URLs, or paths |
@@ -121,6 +127,44 @@ localhost HTTP Origin policy; adding a LAN Host does **not** trust browser origi
 Untrusted Hosts return HTTP 421; untrusted Origins return HTTP 403.
 The standalone `/health` route remains available for localhost container checks
 and is not an MCP endpoint.
+
+### TLS reverse proxy (recommended)
+
+The application does **not** implement TLS itself. If you expose it beyond a
+trusted local network segment, put it behind an HTTPS reverse proxy so
+`MCP_TOKEN` never travels in cleartext.
+
+Set `MCP_ALLOWED_HOSTS` to the hostname clients will actually use through the
+proxy, and have the proxy forward that same Host value to the app. Example
+Caddyfile:
+
+```caddy
+abs-librarian.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Example nginx server block:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name abs-librarian.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/abs-librarian.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/abs-librarian.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+```
+
+With either proxy, set `MCP_ALLOWED_HOSTS=abs-librarian.example.com` and point
+Claude at `https://abs-librarian.example.com/mcp`.
 
 ## Tool reference
 

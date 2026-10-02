@@ -42,6 +42,10 @@ class Config:
     # detect_blobs defaults (overridable per-call)
     blob_hours_threshold: float
     blob_file_count_threshold: int
+    mcp_auth_failure_limit: int
+    mcp_auth_failure_window_seconds: float
+    mcp_auth_backoff_seconds: float
+    mcp_auth_max_backoff_seconds: float
     mcp_allowed_hosts: list[str] = field(default_factory=list)
 
     @property
@@ -64,6 +68,10 @@ class Config:
         audit_log = os.environ.get("AUDIT_LOG", "/audiobooks/.abs-librarian-audit.jsonl")
         blob_hours = float(os.environ.get("BLOB_HOURS_THRESHOLD", "6.0"))
         blob_files = int(os.environ.get("BLOB_FILE_COUNT_THRESHOLD", "10"))
+        auth_failure_limit = int(os.environ.get("MCP_AUTH_FAILURE_LIMIT", "5"))
+        auth_failure_window = float(os.environ.get("MCP_AUTH_FAILURE_WINDOW_SECONDS", "300"))
+        auth_backoff = float(os.environ.get("MCP_AUTH_BACKOFF_SECONDS", "60"))
+        auth_max_backoff = float(os.environ.get("MCP_AUTH_MAX_BACKOFF_SECONDS", "900"))
         return cls(
             abs_url=abs_url,
             abs_token=abs_token,
@@ -75,5 +83,9 @@ class Config:
             audit_log=audit_log,
             blob_hours_threshold=blob_hours,
             blob_file_count_threshold=blob_files,
+            mcp_auth_failure_limit=auth_failure_limit,
+            mcp_auth_failure_window_seconds=auth_failure_window,
+            mcp_auth_backoff_seconds=auth_backoff,
+            mcp_auth_max_backoff_seconds=auth_max_backoff,
             mcp_allowed_hosts=_trusted_hosts(os.environ.get("MCP_ALLOWED_HOSTS", "")),
         )
