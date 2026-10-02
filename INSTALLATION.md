@@ -179,7 +179,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `ABS_TOKEN` | ✅ | — | ABS API token |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
-| `MCP_TOKEN` | ✅ | — | Bearer token Claude uses to authenticate |
+| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
@@ -194,6 +194,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 |---|---|---|
 | `/health` returns `{"status": "error"}` | Server can't reach Audiobookshelf | Check `ABS_URL` is reachable from the container and `ABS_TOKEN` is valid |
 | Claude shows no tools / 401 | Token mismatch | Ensure the `Authorization: Bearer` value exactly equals `MCP_TOKEN` |
+| Container exits with `MCP_TOKEN must be set` | `MCP_TOKEN` is empty | Set `MCP_TOKEN` to a long random secret; the server will not run unauthenticated |
 | File tools say a path is rejected | Path jail | The path must live under `LIBRARY_ROOTS`; no `..`, symlinks out of the jail, or outside paths |
 | File tools run but find nothing | Mount mismatch | The host path mounted as `/audiobooks` must be the same files Audiobookshelf indexes |
 | Connector can't connect | Wrong port | Use the **host** port you actually mapped (the default is `8000`) |

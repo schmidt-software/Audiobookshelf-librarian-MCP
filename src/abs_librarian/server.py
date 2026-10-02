@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -27,10 +26,6 @@ mcp = FastMCP(
     "Audiobookshelf Librarian",
     stateless_http=True,
 )
-
-if cfg.mcp_token:
-    # FastMCP bearer-token auth: set via env so the framework picks it up
-    os.environ.setdefault("MCP_AUTH_TOKEN", cfg.mcp_token)
 
 
 def _client() -> ABSClient:
