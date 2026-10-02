@@ -32,13 +32,18 @@ def disc_dir(tmp_path):
     return book, lib
 
 
+@pytest.fixture()
+def audit_log(tmp_path):
+    return str(tmp_path / "audit.jsonl")
+
+
 # ------------------------------------------------------------------
 # fs_make_book_folders
 # ------------------------------------------------------------------
 
-def test_make_book_folders_dry_run(blob_dir, tmp_path):
+def test_make_book_folders_dry_run(blob_dir, audit_log):
     book_path, lib = blob_dir
-    result = fs_make_book_folders(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=False)
+    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=False)
     assert result["dry_run"] is True
     assert result["count"] == 3
     # Files must NOT have moved
@@ -50,9 +55,9 @@ def test_make_book_folders_dry_run(blob_dir, tmp_path):
     assert file_count == 3
 
 
-def test_make_book_folders_confirm(blob_dir, tmp_path):
+def test_make_book_folders_confirm(blob_dir, audit_log):
     book_path, lib = blob_dir
-    result = fs_make_book_folders(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=True)
+    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
     assert result["dry_run"] is False
     assert result["count"] == 3
     # Each audio file should now be in its own subfolder
@@ -63,14 +68,14 @@ def test_make_book_folders_confirm(blob_dir, tmp_path):
         assert len(audio) == 1
 
 
-def test_make_book_folders_no_overwrite(blob_dir, tmp_path):
+def test_make_book_folders_no_overwrite(blob_dir, audit_log):
     book_path, lib = blob_dir
     # Run once to move files
-    fs_make_book_folders(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=True)
+    fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
     # Put a loose file back to trigger the overwrite guard
     track = book_path / "track00.mp3"
     track.write_bytes(b"\x00" * 50)
-    result = fs_make_book_folders(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=True)
+    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
     skipped = [m for m in result["moves"] if m.get("skipped")]
     assert len(skipped) == 1
 
@@ -79,9 +84,9 @@ def test_make_book_folders_no_overwrite(blob_dir, tmp_path):
 # fs_flatten
 # ------------------------------------------------------------------
 
-def test_flatten_dry_run(disc_dir, tmp_path):
+def test_flatten_dry_run(disc_dir, audit_log):
     book_path, lib = disc_dir
-    result = fs_flatten(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=False)
+    result = fs_flatten(str(book_path), [str(lib)], audit_log, confirm=False)
     assert result["dry_run"] is True
     assert result["count"] == 4
     # Disc folders still present
@@ -89,9 +94,9 @@ def test_flatten_dry_run(disc_dir, tmp_path):
     assert (book_path / "Disc 2").exists()
 
 
-def test_flatten_confirm(disc_dir, tmp_path):
+def test_flatten_confirm(disc_dir, audit_log):
     book_path, lib = disc_dir
-    result = fs_flatten(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=True)
+    result = fs_flatten(str(book_path), [str(lib)], audit_log, confirm=True)
     assert result["dry_run"] is False
     assert result["count"] == 4
     # All files should be in the root book folder now
@@ -102,9 +107,9 @@ def test_flatten_confirm(disc_dir, tmp_path):
     assert not (book_path / "Disc 2").exists()
 
 
-def test_flatten_prefixes_filenames(disc_dir, tmp_path):
+def test_flatten_prefixes_filenames(disc_dir, audit_log):
     book_path, lib = disc_dir
-    fs_flatten(str(book_path), [str(lib)], "/tmp/audit.jsonl", confirm=True)
+    fs_flatten(str(book_path), [str(lib)], audit_log, confirm=True)
     names = {f.name for f in book_path.glob("*.mp3")}
     assert any(n.startswith("Disc 1") for n in names)
     assert any(n.startswith("Disc 2") for n in names)

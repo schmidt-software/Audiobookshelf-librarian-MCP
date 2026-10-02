@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- Mutating tools now honor `DRY_RUN_DEFAULT` when `dry_run` is omitted, including ABS
+  delete/backup actions and file-system moves. Added `dry_run` regression coverage while
+  keeping `confirm=true` as a compatibility alias for execution.
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
