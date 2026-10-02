@@ -7,6 +7,9 @@
   `fs_move`, `fs_quarantine`, and `detect_blobs`.
 
 ### Fixed
+- Mutating tools now honor `DRY_RUN_DEFAULT` when `dry_run` is omitted, including ABS
+  delete/backup actions and file-system moves. Added `dry_run` regression coverage while
+  keeping `confirm=true` as a compatibility alias for execution.
 - Updated batch-update chunk tests to avoid un-awaited mock warnings and kept
   audit-log test writes inside the pytest temporary workspace.
 ### Security

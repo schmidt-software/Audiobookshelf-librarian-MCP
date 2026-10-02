@@ -22,7 +22,8 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 ## Safety model
 
 - **Move-only / no delete**: quarantine instead of delete everywhere.
-- **Dry-run by default**: every file tool returns a plan unless you pass `confirm=true`.
+- **Dry-run by default**: mutating tools honor `DRY_RUN_DEFAULT` (true by default) unless you
+  pass `dry_run=false`.
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
@@ -96,7 +97,7 @@ the example above assumes the MCP server itself is at `192.168.1.100`.
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
-| `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
+| `DRY_RUN_DEFAULT` | — | `true` | Default `dry_run` value for mutating tools when omitted |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact Host values, e.g. `192.168.1.100:8000,librarian.lan:8000`; no wildcards, URLs, or paths |
 | `COVER_URL_ALLOWED_HOSTS` | — | empty | Additional comma-separated exact hosts or IPs allowed for `set_cover` URLs even when they resolve to private, loopback, or link-local addresses |
@@ -148,11 +149,18 @@ addresses unless the host is explicitly allowlisted in `COVER_URL_ALLOWED_HOSTS`
 ### `scan_library(library_id)`
 Trigger an ABS library scan.
 
-### `list_missing(library_id)` / `purge_missing(library_id, confirm?)`
+### `list_missing(library_id)` / `purge_missing(library_id, dry_run?)`
 List or delete ABS records for missing items (files already gone; does not touch disk).
+Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a
+compatibility alias for `dry_run=false`.
 
-### `create_backup()`
-Trigger an ABS backup.
+### `delete_item(item_id, dry_run?)`
+Delete a single ABS item record. Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true`
+remains accepted as a compatibility alias for `dry_run=false`.
+
+### `create_backup(dry_run?)`
+Trigger an ABS backup. Omit `dry_run` to use `DRY_RUN_DEFAULT`; `confirm=true` remains
+accepted as a compatibility alias for `dry_run=false`.
 
 ### `fs_tree(path, max_depth?)`
 Folder tree with audio-file counts and sizes (depth-limited, default 3).
@@ -160,17 +168,21 @@ Folder tree with audio-file counts and sizes (depth-limited, default 3).
 ### `detect_blobs(path, hours_threshold?, file_count_threshold?)`
 Heuristic scan: flags items above the hour or file-count threshold and notes which have disc subfolders.
 
-### `fs_make_book_folders(path, confirm?)`
-Splits a blob folder: each loose audio file → own named subfolder. Dry-run unless `confirm=true`.
+### `fs_make_book_folders(path, dry_run?)`
+Splits a blob folder: each loose audio file → own named subfolder. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_flatten(path, confirm?)`
-Merges disc/CD/part subfolders into the parent with prefixed filenames. Dry-run unless `confirm=true`.
+### `fs_flatten(path, dry_run?)`
+Merges disc/CD/part subfolders into the parent with prefixed filenames. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_move(src, dest, confirm?)`
-Moves a file or folder within the library. No overwrite. Dry-run unless `confirm=true`.
+### `fs_move(src, dest, dry_run?)`
+Moves a file or folder within the library. No overwrite. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
-### `fs_quarantine(path, confirm?)`
-Moves a file or folder to quarantine, preserving relative structure. Dry-run unless `confirm=true`.
+### `fs_quarantine(path, dry_run?)`
+Moves a file or folder to quarantine, preserving relative structure. Omit `dry_run` to use
+`DRY_RUN_DEFAULT`; `confirm=true` remains accepted as a compatibility alias for `dry_run=false`.
 
 ## Example prompts
 

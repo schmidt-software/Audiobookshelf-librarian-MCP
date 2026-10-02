@@ -47,6 +47,16 @@ def _permitted() -> list[str]:
     return cfg.library_roots
 
 
+def _resolve_dry_run(dry_run: bool | None, confirm: bool | None = None) -> bool:
+    if dry_run is not None and confirm is not None and dry_run != (not confirm):
+        raise ValueError("dry_run conflicts with confirm")
+    if dry_run is not None:
+        return dry_run
+    if confirm is not None:
+        return not confirm
+    return cfg.dry_run_default
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -346,9 +356,17 @@ async def list_missing(library_id: str) -> dict:
 
 
 @mcp.tool()
-async def delete_item(item_id: str, confirm: bool = False) -> dict:
-    """Delete a single ABS item record by ID (does NOT touch files). Requires confirm=True."""
-    if not confirm:
+async def delete_item(
+    item_id: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
+    """Delete a single ABS item record by ID (does NOT touch files)."""
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
         return {"dry_run": True, "would_delete": item_id}
     client = _client()
     try:
@@ -359,10 +377,18 @@ async def delete_item(item_id: str, confirm: bool = False) -> dict:
 
 
 @mcp.tool()
-async def purge_missing(library_id: str, confirm: bool = False) -> dict:
+async def purge_missing(
+    library_id: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """Delete ABS records for all missing items (does NOT touch files)."""
     client = _client()
-    if not confirm:
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
         items = await client.get_library_items_missing(library_id)
         return {"dry_run": True, "would_purge": len(items), "items": [i["id"] for i in items]}
     items = await client.get_library_items_missing(library_id)
@@ -382,8 +408,17 @@ async def purge_missing(library_id: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def create_backup() -> dict:
+async def create_backup(
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """Trigger an ABS backup."""
+    try:
+        should_dry_run = _resolve_dry_run(dry_run, confirm)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if should_dry_run:
+        return {"dry_run": True, "would_create": "backup"}
     client = _client()
     return await client.create_backup()
 
@@ -430,14 +465,23 @@ async def tool_detect_blobs(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
+async def tool_fs_make_book_folders(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Split a blob folder: move each loose audio file into its own named subfolder.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_make_book_folders(path, _permitted(), cfg.audit_log, confirm)
-    except (AuditLogError, PathJailError) as e:
+        return fs_make_book_folders(
+            path,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (AuditLogError, PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -446,14 +490,23 @@ async def tool_fs_make_book_folders(path: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
+async def tool_fs_flatten(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Flatten disc/CD/part subfolders into the parent with prefixed filenames.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_flatten(path, _permitted(), cfg.audit_log, confirm)
-    except (AuditLogError, PathJailError) as e:
+        return fs_flatten(
+            path,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (AuditLogError, PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -462,15 +515,26 @@ async def tool_fs_flatten(path: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_move(src: str, dest: str, confirm: bool = False) -> dict:
+async def tool_fs_move(
+    src: str,
+    dest: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Move a file or folder within the library.
     No overwrite; creates parent dirs.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_move(src, dest, _permitted(), cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_move(
+            src,
+            dest,
+            _permitted(),
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (PathJailError, ValueError) as e:
         return {"error": str(e)}
 
 
@@ -479,13 +543,23 @@ async def tool_fs_move(src: str, dest: str, confirm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-async def tool_fs_quarantine(path: str, confirm: bool = False) -> dict:
+async def tool_fs_quarantine(
+    path: str,
+    dry_run: bool | None = None,
+    confirm: bool | None = None,
+) -> dict:
     """
     Move a file or folder to the quarantine directory (preserves structure).
     Nothing is deleted.
-    Default dry_run=True; pass confirm=True to execute.
+    Omit dry_run to use DRY_RUN_DEFAULT; pass dry_run=False or confirm=True to execute.
     """
     try:
-        return fs_quarantine(path, _permitted(), cfg.quarantine_dir, cfg.audit_log, confirm)
-    except PathJailError as e:
+        return fs_quarantine(
+            path,
+            _permitted(),
+            cfg.quarantine_dir,
+            cfg.audit_log,
+            confirm=not _resolve_dry_run(dry_run, confirm),
+        )
+    except (PathJailError, ValueError) as e:
         return {"error": str(e)}

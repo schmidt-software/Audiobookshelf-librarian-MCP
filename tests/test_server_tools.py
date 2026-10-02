@@ -130,7 +130,7 @@ async def test_tool_fs_move_passes_configured_arguments(monkeypatch):
     result = await server_module.tool_fs_move("/library/source", "/library/dest", confirm=True)
 
     move.assert_called_once_with(
-        "/library/source", "/library/dest", ["/library"], "/audit/log.jsonl", True
+        "/library/source", "/library/dest", ["/library"], "/audit/log.jsonl", confirm=True
     )
     assert result == {"ok": True}
 
@@ -160,7 +160,7 @@ async def test_tool_fs_quarantine_passes_configured_arguments(monkeypatch):
     result = await server_module.tool_fs_quarantine("/library/book", confirm=True)
 
     quarantine.assert_called_once_with(
-        "/library/book", ["/library"], "/quarantine", "/audit/log.jsonl", True
+        "/library/book", ["/library"], "/quarantine", "/audit/log.jsonl", confirm=True
     )
     assert result == {"ok": True}
 

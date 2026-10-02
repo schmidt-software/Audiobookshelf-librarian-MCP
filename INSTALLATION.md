@@ -183,7 +183,12 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 
    You should get per-library counts back.
 
-> **Safety reminder.** Every file-system tool runs in **dry-run by default** — it returns a plan and changes nothing unless you pass `confirm=true`. Nothing is ever deleted; unwanted files are *moved* to the quarantine folder. All operations are appended to the audit log inside your library mount.
+> **Safety reminder.** Mutating tools use `DRY_RUN_DEFAULT` when `dry_run` is omitted,
+> so the default behavior is still a dry run unless you explicitly set
+> `DRY_RUN_DEFAULT=false` or pass `dry_run=false`. `confirm=true` remains accepted as a
+> compatibility alias for execution. Nothing is ever deleted from disk; unwanted files
+> are *moved* to the quarantine folder. All operations are appended to the audit log
+> inside your library mount.
 
 ---
 
@@ -196,7 +201,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
-| `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
+| `DRY_RUN_DEFAULT` | — | `true` | Default `dry_run` value for mutating tools when omitted |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
