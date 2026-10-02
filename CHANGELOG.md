@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+### Upgrade notes
+- `DRY_RUN_DEFAULT` (default `true`) now takes effect: mutating tools run as a dry run
+  unless `dry_run=false` (or `confirm=true`) is passed. Set `DRY_RUN_DEFAULT=false` to
+  restore execute-by-default behavior.
+- File-system mutations now abort if the audit log cannot be written; make sure
+  `AUDIT_LOG` points to a writable path.
+- `set_cover` rejects private, loopback, and link-local URLs by default; use
+  `COVER_URL_ALLOWED_HOSTS` for internal cover sources.
+- Library fetches are capped by `ABS_LIBRARY_ITEMS_LIMIT` (default 5000).
+- New optional settings: `MCP_AUTH_FAILURE_LIMIT`, `MCP_AUTH_FAILURE_WINDOW_SECONDS`,
+  `MCP_AUTH_BACKOFF_SECONDS`, `MCP_AUTH_MAX_BACKOFF_SECONDS`.
+
 ### Security
 - Added per-client-IP failed-auth throttling for the MCP bearer token. By default,
   five failed attempts inside five minutes trigger HTTP 429 responses with
