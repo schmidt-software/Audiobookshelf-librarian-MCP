@@ -5,10 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from abs_librarian.fs_tools import fs_flatten, fs_make_book_folders, fs_move, fs_quarantine
+from abs_librarian.audit import AuditLogError
+from abs_librarian.fs_tools import (
+    fs_flatten,
+    fs_make_book_folders,
+    fs_move,
+    fs_quarantine,
+)
 from abs_librarian.jail import PathJailError
 
 AUDIO_EXTS = [".mp3", ".m4b", ".flac"]
+
+
+def _audit_log(lib):
+    return str(lib / "audit.jsonl")
 
 
 @pytest.fixture()
@@ -46,7 +56,7 @@ def disc_dir(tmp_path):
 
 def test_make_book_folders_dry_run(blob_dir, audit_log):
     book_path, lib = blob_dir
-    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=False)
+    result = fs_make_book_folders(str(book_path), [str(lib)], _audit_log(lib), confirm=False)
     assert result["dry_run"] is True
     assert result["count"] == 3
     # Files must NOT have moved
@@ -60,7 +70,7 @@ def test_make_book_folders_dry_run(blob_dir, audit_log):
 
 def test_make_book_folders_confirm(blob_dir, audit_log):
     book_path, lib = blob_dir
-    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
+    result = fs_make_book_folders(str(book_path), [str(lib)], _audit_log(lib), confirm=True)
     assert result["dry_run"] is False
     assert result["count"] == 3
     # Each audio file should now be in its own subfolder
@@ -74,11 +84,11 @@ def test_make_book_folders_confirm(blob_dir, audit_log):
 def test_make_book_folders_no_overwrite(blob_dir, audit_log):
     book_path, lib = blob_dir
     # Run once to move files
-    fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
+    fs_make_book_folders(str(book_path), [str(lib)], _audit_log(lib), confirm=True)
     # Put a loose file back to trigger the overwrite guard
     track = book_path / "track00.mp3"
     track.write_bytes(b"\x00" * 50)
-    result = fs_make_book_folders(str(book_path), [str(lib)], audit_log, confirm=True)
+    result = fs_make_book_folders(str(book_path), [str(lib)], _audit_log(lib), confirm=True)
     skipped = [m for m in result["moves"] if m.get("skipped")]
     assert len(skipped) == 1
 
@@ -89,7 +99,7 @@ def test_make_book_folders_no_overwrite(blob_dir, audit_log):
 
 def test_flatten_dry_run(disc_dir, audit_log):
     book_path, lib = disc_dir
-    result = fs_flatten(str(book_path), [str(lib)], audit_log, confirm=False)
+    result = fs_flatten(str(book_path), [str(lib)], _audit_log(lib), confirm=False)
     assert result["dry_run"] is True
     assert result["count"] == 4
     # Disc folders still present
@@ -99,7 +109,7 @@ def test_flatten_dry_run(disc_dir, audit_log):
 
 def test_flatten_confirm(disc_dir, audit_log):
     book_path, lib = disc_dir
-    result = fs_flatten(str(book_path), [str(lib)], audit_log, confirm=True)
+    result = fs_flatten(str(book_path), [str(lib)], _audit_log(lib), confirm=True)
     assert result["dry_run"] is False
     assert result["count"] == 4
     # All files should be in the root book folder now
@@ -112,7 +122,7 @@ def test_flatten_confirm(disc_dir, audit_log):
 
 def test_flatten_prefixes_filenames(disc_dir, audit_log):
     book_path, lib = disc_dir
-    fs_flatten(str(book_path), [str(lib)], audit_log, confirm=True)
+    fs_flatten(str(book_path), [str(lib)], _audit_log(lib), confirm=True)
     names = {f.name for f in book_path.glob("*.mp3")}
     assert any(n.startswith("Disc 1") for n in names)
     assert any(n.startswith("Disc 2") for n in names)
@@ -229,3 +239,71 @@ def test_quarantine_revalidates_source_before_mutation(move_tree, audit_log, mon
     quarantined = move_tree["quarantine"] / move_tree["source"].relative_to(move_tree["lib"])
     assert link.resolve() == move_tree["alternate_source"].resolve()
     assert not quarantined.exists()
+@pytest.mark.parametrize(
+    ("operation", "kwargs", "expected_path", "fixture_name"),
+    [
+        (
+            fs_make_book_folders,
+            lambda book_path, lib: {
+                "path": str(book_path),
+                "permitted_roots": [str(lib)],
+                "audit_log": _audit_log(lib),
+                "confirm": True,
+            },
+            lambda book_path: book_path / "track00.mp3",
+            "blob_dir",
+        ),
+        (
+            fs_flatten,
+            lambda book_path, lib: {
+                "path": str(book_path),
+                "permitted_roots": [str(lib)],
+                "audit_log": _audit_log(lib),
+                "confirm": True,
+            },
+            lambda book_path: book_path / "Disc 1" / "track00.mp3",
+            "disc_dir",
+        ),
+        (
+            fs_move,
+            lambda book_path, lib: {
+                "src": str(book_path / "track00.mp3"),
+                "dest": str(book_path / "moved" / "track00.mp3"),
+                "permitted_roots": [str(lib)],
+                "audit_log": _audit_log(lib),
+                "confirm": True,
+            },
+            lambda book_path: book_path / "track00.mp3",
+            "blob_dir",
+        ),
+        (
+            fs_quarantine,
+            lambda book_path, lib: {
+                "path": str(book_path / "track00.mp3"),
+                "permitted_roots": [str(lib)],
+                "quarantine_dir": str(lib / "quarantine"),
+                "audit_log": _audit_log(lib),
+                "confirm": True,
+            },
+            lambda book_path: book_path / "track00.mp3",
+            "blob_dir",
+        ),
+    ],
+)
+def test_mutating_operations_abort_when_audit_logging_fails(
+    monkeypatch, capsys, operation, kwargs, expected_path, fixture_name, request
+):
+    book_path, lib = request.getfixturevalue(fixture_name)
+
+    def failing_open(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("abs_librarian.audit.Path.open", failing_open)
+
+    with pytest.raises(AuditLogError, match="Operation aborted before mutating the filesystem"):
+        operation(**kwargs(book_path, lib))
+
+    assert expected_path(book_path).exists()
+    captured = capsys.readouterr()
+    assert "CRITICAL: failed to write audit log" in captured.err
+    assert "disk full" in captured.err

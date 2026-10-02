@@ -4,7 +4,7 @@
   <Template>Custom</Template>
   <TemplateURL>local</TemplateURL>
 
-  <Repository>ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest</Repository>
+  <Repository>ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest</Repository>
   <Registry>https://ghcr.io</Registry>
 
   <Network>bridge</Network>
@@ -12,8 +12,8 @@
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
 
-  <Support>https://github.com/rhamblen/Audiobookshelf-librarian-MCP</Support>
-  <Project>https://github.com/rhamblen/Audiobookshelf-librarian-MCP</Project>
+  <Support>https://github.com/schmidt-software/Audiobookshelf-librarian-MCP</Support>
+  <Project>https://github.com/schmidt-software/Audiobookshelf-librarian-MCP</Project>
 
   <Overview>
     MCP server that lets an AI assistant maintain a self-hosted Audiobookshelf library — metadata repair and file-system fixes (blob splitting, folder flattening, quarantine). Move-only, dry-run by default, path-jailed.

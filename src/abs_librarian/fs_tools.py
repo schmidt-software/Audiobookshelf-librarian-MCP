@@ -20,6 +20,10 @@ _DISC_PATTERNS = re.compile(
 )
 
 
+def _audit_entry_without_dry_run(result: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in result.items() if k != "dry_run"}
+
+
 # ---------------------------------------------------------------------------
 # fs_tree
 # ---------------------------------------------------------------------------
@@ -139,14 +143,30 @@ def fs_make_book_folders(
 
     if not dry_run:
         for m in moves:
+            if Path(m["dest"]).exists():
+                m["skipped"] = "destination exists"
+        log_operation(
+            audit_log,
+            "fs_make_book_folders",
+            dry_run,
+            path=str(src),
+            moves=moves,
+        )
+        for m in moves:
             s, d = Path(m["src"]), Path(m["dest"])
-            d.parent.mkdir(parents=True, exist_ok=True)
-            if d.exists():
+            if m.get("skipped"):
                 m["skipped"] = "destination exists"
                 continue
+            d.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(s), str(d))
-
-    log_operation(audit_log, "fs_make_book_folders", dry_run, path=str(src), moves=moves)
+    else:
+        log_operation(
+            audit_log,
+            "fs_make_book_folders",
+            dry_run,
+            path=str(src),
+            moves=moves,
+        )
     return {"dry_run": dry_run, "moves": moves, "count": len(moves)}
 
 
@@ -179,8 +199,12 @@ def fs_flatten(
 
     if not dry_run:
         for m in moves:
+            if Path(m["dest"]).exists():
+                m["skipped"] = "destination exists"
+        log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
+        for m in moves:
             s, d = Path(m["src"]), Path(m["dest"])
-            if d.exists():
+            if m.get("skipped"):
                 m["skipped"] = "destination exists"
                 continue
             shutil.move(str(s), str(d))
@@ -188,8 +212,8 @@ def fs_flatten(
         for sub in sorted(src.iterdir()):
             if sub.is_dir() and not sub.is_symlink() and not any(sub.rglob("*")):
                 sub.rmdir()
-
-    log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
+    else:
+        log_operation(audit_log, "fs_flatten", dry_run, path=str(src), moves=moves)
     return {"dry_run": dry_run, "moves": moves, "count": len(moves)}
 
 
@@ -210,11 +234,14 @@ def fs_move(
 
     result: dict[str, Any] = {"dry_run": dry_run, "src": str(s), "dest": str(d)}
 
-    if not dry_run:
+    if dry_run:
+        log_operation(audit_log, "fs_move", dry_run, **_audit_entry_without_dry_run(result))
+    else:
         s = revalidate_resolved(
             src, permitted_roots, s, path_label="source path", reject_root=True
         )
         d = revalidate_resolved(dest, permitted_roots, d, path_label="destination path")
+        log_operation(audit_log, "fs_move", dry_run, **_audit_entry_without_dry_run(result))
         if d.exists():
             result["error"] = "destination exists; move aborted (no overwrite)"
         else:
@@ -228,9 +255,6 @@ def fs_move(
             else:
                 shutil.move(str(s), str(d))
                 result["ok"] = True
-
-    log_kwargs = {k: v for k, v in result.items() if k != "dry_run"}
-    log_operation(audit_log, "fs_move", dry_run, **log_kwargs)
     return result
 
 
@@ -257,7 +281,14 @@ def fs_quarantine(
     dest = q / (rel if rel else s.name)
     result: dict[str, Any] = {"dry_run": dry_run, "src": str(s), "dest": str(dest)}
 
-    if not dry_run:
+    if dry_run:
+        log_operation(
+            audit_log,
+            "fs_quarantine",
+            dry_run,
+            **_audit_entry_without_dry_run(result),
+        )
+    else:
         s = revalidate_resolved(
             path, permitted_roots, s, path_label="source path", reject_root=True
         )
@@ -268,6 +299,12 @@ def fs_quarantine(
             path_label="quarantine path",
         )
         dest = q / (_relative_to_permitted_root(s, permitted_roots) or s.name)
+        log_operation(
+            audit_log,
+            "fs_quarantine",
+            dry_run,
+            **_audit_entry_without_dry_run(result),
+        )
         if dest.exists():
             result["error"] = "destination exists in quarantine; aborted"
         else:
@@ -287,9 +324,6 @@ def fs_quarantine(
             else:
                 shutil.move(str(s), str(dest))
                 result["ok"] = True
-
-    log_kwargs = {k: v for k, v in result.items() if k != "dry_run"}
-    log_operation(audit_log, "fs_quarantine", dry_run, **log_kwargs)
     return result
 
 
