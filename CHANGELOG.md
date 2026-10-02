@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+- MCP authentication is now actually enforced. Previously `MCP_TOKEN` was only copied into an
+  unused `MCP_AUTH_TOKEN` environment variable, so every tool was reachable without credentials.
+  All MCP HTTP requests now require `Authorization: Bearer <MCP_TOKEN>` (constant-time
+  comparison) and are rejected with HTTP 401 otherwise; `/health` stays public.
+- Fail closed: the server refuses to start when `MCP_TOKEN` is empty, and the auth layer rejects
+  every MCP request (HTTP 503) if it is ever constructed without a token.
+
 ## [0.2.11] - 2026-06-12
 
 ### Added

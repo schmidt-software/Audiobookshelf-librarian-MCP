@@ -91,7 +91,7 @@ Replace `YOUR-SERVER-IP` and `YOUR_MCP_TOKEN` with your values.
 | `ABS_TOKEN` | ✅ | — | ABS API token |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
-| `MCP_TOKEN` | ✅ | — | Bearer token for Claude to authenticate |
+| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
