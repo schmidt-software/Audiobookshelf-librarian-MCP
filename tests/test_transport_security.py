@@ -127,6 +127,7 @@ def config_env(monkeypatch):
 
 def test_default_hosts_are_only_loopback(config_env):
     cfg = Config.from_env()
+    assert cfg.abs_library_items_limit == 5000
     assert cfg.mcp_allowed_hosts == []
     assert set(cfg.trusted_hosts) == {
         "localhost", "127.0.0.1", "[::1]", "localhost:8123", "127.0.0.1:8123", "[::1]:8123",
@@ -136,6 +137,13 @@ def test_default_hosts_are_only_loopback(config_env):
 def test_explicit_hosts_are_trimmed_and_deduplicated(config_env, monkeypatch):
     monkeypatch.setenv("MCP_ALLOWED_HOSTS", " librarian.lan:9000,192.168.1.100,librarian.lan:9000 ")
     assert Config.from_env().mcp_allowed_hosts == ["librarian.lan:9000", "192.168.1.100"]
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_invalid_library_items_limit_fails_closed(config_env, monkeypatch, value):
+    monkeypatch.setenv("ABS_LIBRARY_ITEMS_LIMIT", value)
+    with pytest.raises(ValueError, match="ABS_LIBRARY_ITEMS_LIMIT must be greater than 0"):
+        Config.from_env()
 
 
 @pytest.mark.parametrize("value", [

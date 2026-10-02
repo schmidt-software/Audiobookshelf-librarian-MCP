@@ -47,7 +47,7 @@ Paste a prompt like the one below, filling in your own values:
 ```
 Please install the Audiobookshelf Librarian MCP server for me.
 
-Repo: https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+Repo: https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 
 My setup:
 - Audiobookshelf URL: http://192.168.1.100:13378
@@ -58,7 +58,7 @@ My setup:
 
 Read the repo's README and docker-compose.yml, then:
 1. Generate a strong MCP_TOKEN for me.
-2. Deploy the ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest container
+2. Deploy the ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest container
    with the correct volume mounts and environment variables. Set MCP_ALLOWED_HOSTS
    to my exact MCP server LAN address and mapped port; do not use wildcards
    or disable the SDK Host/Origin checks.
@@ -94,7 +94,7 @@ docker run -d \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
   -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
-  ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
+  ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest
 ```
 
 ### Method 2 — Docker Compose
@@ -102,7 +102,7 @@ docker run -d \
 1. Clone the repo (or just copy `docker-compose.yml` and `.env.example`):
 
    ```bash
-   git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+   git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
    cd Audiobookshelf-librarian-MCP
    ```
 
@@ -232,7 +232,12 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 
    You should get per-library counts back.
 
-> **Safety reminder.** Every file-system tool runs in **dry-run by default** — it returns a plan and changes nothing unless you pass `confirm=true`. Nothing is ever deleted; unwanted files are *moved* to the quarantine folder. All operations are appended to the audit log inside your library mount.
+> **Safety reminder.** Mutating tools use `DRY_RUN_DEFAULT` when `dry_run` is omitted,
+> so the default behavior is still a dry run unless you explicitly set
+> `DRY_RUN_DEFAULT=false` or pass `dry_run=false`. `confirm=true` remains accepted as a
+> compatibility alias for execution. Nothing is ever deleted from disk; unwanted files
+> are *moved* to the quarantine folder. All operations are appended to the audit log
+> inside your library mount.
 
 ---
 
@@ -243,13 +248,14 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `ABS_URL` | ✅ | — | Audiobookshelf base URL |
 | `ABS_TOKEN` | ✅ | — | ABS API token |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
+| `ABS_LIBRARY_ITEMS_LIMIT` | — | `5000` | Maximum number of items requested per library listing call |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
 | `MCP_AUTH_FAILURE_LIMIT` | — | `5` | Failed auth attempts allowed per client IP inside the rolling window before HTTP 429 backoff starts |
 | `MCP_AUTH_FAILURE_WINDOW_SECONDS` | — | `300` | Rolling window for counting failed auth attempts per client IP |
 | `MCP_AUTH_BACKOFF_SECONDS` | — | `60` | Initial `Retry-After` backoff, doubled on repeated failures inside the window |
 | `MCP_AUTH_MAX_BACKOFF_SECONDS` | — | `900` | Maximum `Retry-After` backoff for repeated failed auth attempts |
-| `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
+| `DRY_RUN_DEFAULT` | — | `true` | Default `dry_run` value for mutating tools when omitted |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
@@ -281,7 +287,7 @@ To run from source instead of the container:
 Install the `dev` extra to include pytest, pytest-asyncio, and Ruff, as used in CI.
 
 ```bash
-git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
 python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values

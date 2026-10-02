@@ -32,9 +32,12 @@ def _id_segment(value: str, name: str) -> str:
 
 
 class ABSClient:
-    def __init__(self, base_url: str, token: str) -> None:
+    def __init__(self, base_url: str, token: str, library_items_limit: int = 5000) -> None:
+        if library_items_limit <= 0:
+            raise ValueError("library_items_limit must be greater than 0")
         self._base = base_url
         self._headers = {"Authorization": f"Bearer {token}"}
+        self._library_items_limit = library_items_limit
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -83,7 +86,9 @@ class ABSClient:
 
     async def get_library_items(self, library_id: str) -> list[dict]:
         library_id = _id_segment(library_id, "library_id")
-        data = await self._get(f"/api/libraries/{library_id}/items", limit=0)
+        data = await self._get(
+            f"/api/libraries/{library_id}/items", limit=self._library_items_limit
+        )
         return data.get("results", [])
 
     # ------------------------------------------------------------------

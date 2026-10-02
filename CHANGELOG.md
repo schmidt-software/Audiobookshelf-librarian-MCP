@@ -8,7 +8,42 @@
   `Retry-After`, and repeated failures back off exponentially up to 15 minutes.
 - Documented the supported deployment model for TLS: terminate HTTPS in a
   reverse proxy and keep the application itself on plain HTTP behind it.
+### Added
+- Added regression tests for `server.py` tool wrappers and direct coverage for
+  `fs_move`, `fs_quarantine`, and `detect_blobs`.
+
 ### Fixed
+- `find_items` now rejects invalid, overlong, or overly complex `title_regex` values with a
+  clear `ValueError`, and bounds title matching to reduce ReDoS risk.
+- Library item listing no longer requests unlimited results. `ABS_LIBRARY_ITEMS_LIMIT`
+  now caps each library fetch at a configurable default of 5000 items to avoid loading
+  entire libraries into memory in one API call.
+- Mutating tools now honor `DRY_RUN_DEFAULT` when `dry_run` is omitted, including ABS
+  delete/backup actions and file-system moves. Added `dry_run` regression coverage while
+  keeping `confirm=true` as a compatibility alias for execution.
+- Updated batch-update chunk tests to avoid un-awaited mock warnings and kept
+  audit-log test writes inside the pytest temporary workspace.
+### Security
+- Hardened file-system mutation jail checks: `fs_move` and `fs_quarantine` now reject the
+  library root itself (including aliases that resolve to it) as a source, and they re-resolve
+  the source/destination immediately before mutating the filesystem to narrow TOCTOU races. The
+  remaining race window of Python's path-based APIs is documented in the jail module.
+### Fixed
+- Sanitized the MCP `health` tool's failure response. Internal exception details are
+  now logged server-side instead of being returned to clients.
+
+### Security
+- Restricted `set_cover` URLs to HTTP/HTTPS and blocked private, loopback, and
+  link-local hosts by default. Added `COVER_URL_ALLOWED_HOSTS` for exact host/IP
+  allowlisting when an internal cover source is intentionally required.
+- File-system mutations now fail closed if the audit log cannot be written. The
+  server logs a loud stderr error and aborts before changing files, preserving
+  the audit trail guarantee (#18).
+- `batch_update_metadata` now keeps its series cache per library, refreshes it after
+  series updates so newly created series are reused, and invalidates stale cache
+  entries instead of sharing one process-wide series map across all libraries (#19).
+- Updated repository and container image references throughout the docs, Compose file, Unraid template, and package metadata to point at `schmidt-software/Audiobookshelf-librarian-MCP` and `ghcr.io/schmidt-software/audiobookshelf-librarian-mcp` (#25).
+
 - Added the missing `abs_librarian.__main__.main()` console entry point so the
   installed `abs-librarian-mcp` command now starts uvicorn with the same host,
   port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
