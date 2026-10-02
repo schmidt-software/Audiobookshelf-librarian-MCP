@@ -3,7 +3,7 @@
 
 import pytest
 
-from abs_librarian.jail import PathJailError, resolve_safe
+from abs_librarian.jail import PathJailError, resolve_mutation_source, resolve_safe
 
 
 @pytest.fixture()
@@ -56,3 +56,15 @@ def test_symlink_outside_jail_rejected(tmp_root, tmp_path):
     link.symlink_to(outside)
     with pytest.raises(PathJailError):
         resolve_safe(str(link / "data"), [str(tmp_root)])
+
+
+def test_mutation_source_rejects_root(tmp_root):
+    with pytest.raises(PathJailError):
+        resolve_mutation_source(str(tmp_root), [str(tmp_root)])
+
+
+def test_mutation_source_rejects_symlink_to_root(tmp_root):
+    alias = tmp_root.parent / "root_alias"
+    alias.symlink_to(tmp_root)
+    with pytest.raises(PathJailError):
+        resolve_mutation_source(str(alias), [str(tmp_root)])
