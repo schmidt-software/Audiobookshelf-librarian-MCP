@@ -99,6 +99,7 @@ the example above assumes the MCP server itself is at `192.168.1.100`.
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact Host values, e.g. `192.168.1.100:8000,librarian.lan:8000`; no wildcards, URLs, or paths |
+| `COVER_URL_ALLOWED_HOSTS` | — | empty | Additional comma-separated exact hosts or IPs allowed for `set_cover` URLs even when they resolve to private, loopback, or link-local addresses |
 | `AUDIT_LOG` | — | `/audiobooks/.abs-librarian-audit.jsonl` | Audit log path |
 | `BLOB_HOURS_THRESHOLD` | — | `6.0` | `detect_blobs` hours threshold (overridable per-call) |
 | `BLOB_FILE_COUNT_THRESHOLD` | — | `10` | `detect_blobs` file-count threshold (overridable per-call) |
@@ -140,7 +141,9 @@ Bulk metadata update. Each update: `{id, title?, authors?, narrators?, series?, 
 Batch quick-match against Audible (default) or another provider.
 
 ### `set_cover(item_id, url? | search_title?, search_author?, provider?)`
-Set a cover from a URL or from a provider cover search.
+Set a cover from a URL or from a provider cover search. Direct and provider-returned
+URLs must use HTTP or HTTPS and must not resolve to private, loopback, or link-local
+addresses unless the host is explicitly allowlisted in `COVER_URL_ALLOWED_HOSTS`.
 
 ### `scan_library(library_id)`
 Trigger an ABS library scan.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -19,9 +20,11 @@ from .fs_tools import (
 )
 from .jail import PathJailError
 from .metadata import SeriesCache, build_metadata_payload
+from .url_security import validate_cover_url
 
 cfg = Config.from_env()
 _series_cache = SeriesCache()
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     "Audiobookshelf Librarian",
@@ -54,8 +57,9 @@ async def health() -> dict:
     try:
         libs = await client.get_libraries()
         return {"status": "ok", "abs_libraries": len(libs)}
-    except Exception as exc:
-        return {"status": "error", "detail": str(exc)}
+    except Exception:
+        logger.exception("Audiobookshelf health check failed")
+        return {"status": "error", "detail": "Audiobookshelf connectivity failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +280,10 @@ async def set_cover(
     """Set a cover from a URL, or search a provider and use the first result."""
     client = _client()
     if url:
+        try:
+            validate_cover_url(url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, url)
         return {"item_id": item_id, "source": "url", "result": result}
     if search_title:
@@ -289,6 +297,10 @@ async def set_cover(
             first_url = first.get("image") or first.get("url")
         if not first_url:
             return {"error": "unexpected cover format", "raw": first}
+        try:
+            validate_cover_url(first_url, cfg.cover_url_allowed_hosts)
+        except ValueError as exc:
+            return {"error": str(exc), "item_id": item_id}
         result = await client.set_cover_url(item_id, first_url)
         return {"item_id": item_id, "source": "search", "cover_url": first_url, "result": result}
     return {"error": "provide url or search_title"}

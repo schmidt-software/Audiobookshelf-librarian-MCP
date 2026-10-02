@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+- Sanitized the MCP `health` tool's failure response. Internal exception details are
+  now logged server-side instead of being returned to clients.
+
+### Security
+- Restricted `set_cover` URLs to HTTP/HTTPS and blocked private, loopback, and
+  link-local hosts by default. Added `COVER_URL_ALLOWED_HOSTS` for exact host/IP
+  allowlisting when an internal cover source is intentionally required.
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
