@@ -13,7 +13,7 @@ from abs_librarian.config import Config
 def client(monkeypatch, request):
     monkeypatch.setenv("ABS_URL", "http://abs.local")
     monkeypatch.setenv("ABS_TOKEN", "test-token")
-    monkeypatch.setenv("MCP_TOKEN", "")
+    monkeypatch.setenv("MCP_TOKEN", "test-token")
     monkeypatch.setenv("PORT", "8000")
     monkeypatch.setenv(
         "MCP_ALLOWED_HOSTS",
@@ -23,7 +23,7 @@ def client(monkeypatch, request):
     for name in modules:
         monkeypatch.delitem(sys.modules, name, raising=False)
     main = importlib.import_module("abs_librarian.__main__")
-    with TestClient(main.app) as http:
+    with TestClient(main.app, headers={"Authorization": "Bearer test-token"}) as http:
         yield http
     for name in modules:
         sys.modules.pop(name, None)
@@ -100,7 +100,11 @@ async def test_wrapper_preserves_original_scope_and_headers(client, monkeypatch)
     scope = {
         "type": "http",
         "path": "/mcp",
-        "headers": [(b"host", b"attacker.example:8000"), (b"origin", b"http://attacker.example")],
+        "headers": [
+            (b"host", b"attacker.example:8000"),
+            (b"origin", b"http://attacker.example"),
+            (b"authorization", b"Bearer test-token"),
+        ],
     }
     forwarded = []
 
