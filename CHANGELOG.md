@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Added regression tests for `server.py` tool wrappers and direct coverage for
+  `fs_move`, `fs_quarantine`, and `detect_blobs`.
+
+### Fixed
+- Updated batch-update chunk tests to avoid un-awaited mock warnings and kept
+  audit-log test writes inside the pytest temporary workspace.
 ### Security
 - Hardened file-system mutation jail checks: `fs_move` and `fs_quarantine` now reject the
   library root itself (including aliases that resolve to it) as a source, and they re-resolve
