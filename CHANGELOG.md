@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- Updated repository and container image references throughout the docs, Compose file, Unraid template, and package metadata to point at `schmidt-software/Audiobookshelf-librarian-MCP` and `ghcr.io/schmidt-software/audiobookshelf-librarian-mcp` (#25).
+
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes

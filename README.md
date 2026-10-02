@@ -51,7 +51,7 @@ docker run -d \
   -e QUARANTINE_DIR=/quarantine \
   -e MCP_TOKEN=your-long-random-secret \
   -e MCP_ALLOWED_HOSTS=192.168.1.100:8000 \
-  ghcr.io/rhamblen/audiobookshelf-librarian-mcp:latest
+  ghcr.io/schmidt-software/audiobookshelf-librarian-mcp:latest
 ```
 
 ### docker compose
@@ -204,7 +204,7 @@ to the MCP v2 API.
 The `dev` extra installs pytest, pytest-asyncio, and Ruff, matching the CI setup.
 
 ```bash
-git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
+git clone https://github.com/schmidt-software/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
 python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
