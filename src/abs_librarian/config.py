@@ -33,6 +33,7 @@ def _trusted_hosts(raw: str) -> list[str]:
 class Config:
     abs_url: str
     abs_token: str
+    abs_library_items_limit: int
     library_roots: list[str]
     quarantine_dir: str
     mcp_token: str
@@ -53,6 +54,9 @@ class Config:
     def from_env(cls) -> Config:
         abs_url = os.environ["ABS_URL"].rstrip("/")
         abs_token = os.environ["ABS_TOKEN"]
+        abs_library_items_limit = int(os.environ.get("ABS_LIBRARY_ITEMS_LIMIT", "5000"))
+        if abs_library_items_limit <= 0:
+            raise ValueError("ABS_LIBRARY_ITEMS_LIMIT must be greater than 0")
         roots_raw = os.environ.get("LIBRARY_ROOTS", "")
         library_roots = [r for r in roots_raw.split(":") if r]
         quarantine_dir = os.environ.get("QUARANTINE_DIR", "/quarantine")
@@ -67,6 +71,7 @@ class Config:
         return cls(
             abs_url=abs_url,
             abs_token=abs_token,
+            abs_library_items_limit=abs_library_items_limit,
             library_roots=library_roots,
             quarantine_dir=quarantine_dir,
             mcp_token=mcp_token,

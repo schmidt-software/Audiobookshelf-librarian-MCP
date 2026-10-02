@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- `find_items` now rejects invalid, overlong, or overly complex `title_regex` values with a
+  clear `ValueError`, and bounds title matching to reduce ReDoS risk.
+- Library item listing no longer requests unlimited results. `ABS_LIBRARY_ITEMS_LIMIT`
+  now caps each library fetch at a configurable default of 5000 items to avoid loading
+  entire libraries into memory in one API call.
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes

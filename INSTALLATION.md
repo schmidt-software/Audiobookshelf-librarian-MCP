@@ -194,8 +194,9 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `ABS_URL` | ✅ | — | Audiobookshelf base URL |
 | `ABS_TOKEN` | ✅ | — | ABS API token |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
+| `ABS_LIBRARY_ITEMS_LIMIT` | — | `5000` | Maximum number of items requested per library listing call |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
-| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
+| `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request via the HTTP Authorization header; the server refuses to start without it. Only `/health` is public. |
 | `DRY_RUN_DEFAULT` | — | `true` | File tools default to dry-run |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
