@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
