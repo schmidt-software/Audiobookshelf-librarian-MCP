@@ -186,6 +186,10 @@ Quarantine /audiobooks/Author Name/Series Book 1 (mp3 copy) — confirm.
 
 ## Development
 
+Python and Docker installations require `mcp[cli]>=1.0,<2` because the server uses the
+v1 `mcp.server.fastmcp.FastMCP` API. Keep this upper bound until the server is migrated
+to the MCP v2 API.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
