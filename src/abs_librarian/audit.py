@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 _lock = threading.Lock()
+
+
+class AuditLogError(RuntimeError):
+    """Raised when an audit entry cannot be written."""
 
 
 def log_operation(
@@ -29,6 +34,11 @@ def log_operation(
         with _lock:
             with path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry) + "\n")
-    except OSError:
-        # Never crash the MCP server over a logging failure; silently skip.
-        pass
+    except OSError as exc:
+        message = (
+            f"CRITICAL: failed to write audit log for {operation} to {path}: {exc}"
+        )
+        if not dry_run:
+            message += " Operation aborted before mutating the filesystem."
+        print(message, file=sys.stderr)
+        raise AuditLogError(message) from exc
