@@ -26,6 +26,11 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
+- **ABS ID validation**: item and library IDs must be non-empty raw IDs, not URL-encoded
+  values. UUID and legacy IDs are supported without requiring a specific format.
+  Dot segments (`.` / `..`), `/`, `\`, `%`, `?`, `#`, and control characters raise
+  `ValueError` before an API request. Accepted IDs are URL-encoded as a single path
+  segment; batch IDs are validated but remain unchanged in JSON bodies.
 
 ## Quick start
 
@@ -172,15 +177,20 @@ Python and Docker installations require `mcp[cli]>=1.0,<2` because the server us
 v1 `mcp.server.fastmcp.FastMCP` API. Keep this upper bound until the server is migrated
 to the MCP v2 API.
 
+The `dev` extra installs pytest, pytest-asyncio, and Ruff, matching the CI setup.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
 python -m abs_librarian
 
 # Tests
 pytest
+
+# Lint
+ruff check src/ tests/
 ```
 
 ## License
