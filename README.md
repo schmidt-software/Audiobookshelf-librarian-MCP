@@ -168,6 +168,10 @@ the same value for both installed packages and source-only Docker deployments.
 Update `__version__` when releasing a new version; no runtime metadata lookup or
 fallback version is needed.
 
+Python and Docker installations require `mcp[cli]>=1.0,<2` because the server uses the
+v1 `mcp.server.fastmcp.FastMCP` API. Keep this upper bound until the server is migrated
+to the MCP v2 API.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
