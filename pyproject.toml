@@ -22,6 +22,11 @@ dev = [
     "ruff",
 ]
 
+[project.urls]
+Homepage = "https://github.com/schmidt-software/Audiobookshelf-librarian-MCP"
+Repository = "https://github.com/schmidt-software/Audiobookshelf-librarian-MCP"
+Issues = "https://github.com/schmidt-software/Audiobookshelf-librarian-MCP/issues"
+
 [project.scripts]
 abs-librarian-mcp = "abs_librarian.__main__:main"
 
