@@ -215,19 +215,20 @@ async def batch_update_metadata(
     """
     client = _client()
 
-    # Seed series cache for this library if not already done
-    if not _series_cache._cache:
+    if not _series_cache.has_library(library_id):
         existing = await client.get_series(library_id)
-        _series_cache.seed(existing)
+        _series_cache.seed(library_id, existing)
 
     payloads = []
+    series_updates_present = False
     for u in updates:
         item_id = u["id"]
         series_raw = u.get("series")
         resolved_series = None
         if series_raw is not None:
+            series_updates_present = True
             resolved_series = [
-                _series_cache.resolve(s["name"], s.get("sequence", ""))
+                _series_cache.resolve(library_id, s["name"], s.get("sequence", ""))
                 for s in series_raw
             ]
         meta = build_metadata_payload(
@@ -241,6 +242,9 @@ async def batch_update_metadata(
         payloads.append({"id": item_id, "mediaPayload": {"metadata": meta}})
 
     results = await client.batch_update(payloads)
+    if series_updates_present:
+        _series_cache.invalidate(library_id)
+        _series_cache.seed(library_id, await client.get_series(library_id))
     return {"updated": len(payloads), "results": results}
 
 

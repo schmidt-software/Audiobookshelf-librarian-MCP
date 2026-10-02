@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- `batch_update_metadata` now keeps its series cache per library, refreshes it after
+  series updates so newly created series are reused, and invalidates stale cache
+  entries instead of sharing one process-wide series map across all libraries (#19).
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
