@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- File-system mutations now fail closed if the audit log cannot be written. The
+  server logs a loud stderr error and aborts before changing files, preserving
+  the audit trail guarantee (#18).
+
 ## [0.3.0] - 2026-10-03
 
 ### Upgrade notes
