@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-03
+
+### Upgrade notes
+- Set a non-empty `MCP_TOKEN` before starting the server and configure clients to
+  send it using the HTTP Authorization header with the Bearer scheme. Previous
+  versions did not enforce this token; unauthenticated MCP access now fails.
+  The `/health` endpoint remains public.
+- For LAN or reverse-proxy access, explicitly configure `MCP_ALLOWED_HOSTS` with
+  the trusted hostnames or IP addresses and externally visible ports used by
+  clients (for example, `192.168.1.100:8000,nas.example:8000`).
+  Arbitrary Host-header rewriting is removed; untrusted hosts are rejected.
+  Keep SDK Origin validation enabled and follow the installation guide.
+- This minor release changes deployment requirements for existing installations.
+
 ### Fixed
 - Removed blanket Host-header rewriting. MCP v1 SDK transport security now
   validates exact trusted hosts, with explicit LAN opt-in via `MCP_ALLOWED_HOSTS`.
