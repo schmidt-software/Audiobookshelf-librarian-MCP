@@ -26,6 +26,11 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
 - **Path jail**: all paths are validated against configured library roots; `..` traversal, symlinks that exit the jail, and absolute paths outside roots are rejected and logged.
 - **Audit log**: every file operation is appended to a JSON-lines file inside your library mount.
 - **Dedicated ABS token**: never your login credentials.
+- **ABS ID validation**: item and library IDs must be non-empty raw IDs, not URL-encoded
+  values. UUID and legacy IDs are supported without requiring a specific format.
+  Dot segments (`.` / `..`), `/`, `\`, `%`, `?`, `#`, and control characters raise
+  `ValueError` before an API request. Accepted IDs are URL-encoded as a single path
+  segment; batch IDs are validated but remain unchanged in JSON bodies.
 
 ## Quick start
 
