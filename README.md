@@ -162,15 +162,20 @@ Quarantine /audiobooks/Author Name/Series Book 1 (mp3 copy) — confirm.
 
 ## Development
 
+The `dev` extra installs pytest, pytest-asyncio, and Ruff, matching the CI setup.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
 python -m abs_librarian
 
 # Tests
 pytest
+
+# Lint
+ruff check src/ tests/
 ```
 
 ## License
