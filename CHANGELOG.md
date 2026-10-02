@@ -8,6 +8,13 @@
   the source/destination immediately before mutating the filesystem to narrow TOCTOU races. The
   remaining race window of Python's path-based APIs is documented in the jail module.
 ### Fixed
+- Sanitized the MCP `health` tool's failure response. Internal exception details are
+  now logged server-side instead of being returned to clients.
+
+### Security
+- Restricted `set_cover` URLs to HTTP/HTTPS and blocked private, loopback, and
+  link-local hosts by default. Added `COVER_URL_ALLOWED_HOSTS` for exact host/IP
+  allowlisting when an internal cover source is intentionally required.
 - File-system mutations now fail closed if the audit log cannot be written. The
   server logs a loud stderr error and aborts before changing files, preserving
   the audit trail guarantee (#18).
