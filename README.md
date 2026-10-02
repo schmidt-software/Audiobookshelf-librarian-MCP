@@ -166,15 +166,20 @@ Python and Docker installations require `mcp[cli]>=1.0,<2` because the server us
 v1 `mcp.server.fastmcp.FastMCP` API. Keep this upper bound until the server is migrated
 to the MCP v2 API.
 
+The `dev` extra installs pytest, pytest-asyncio, and Ruff, matching the CI setup.
+
 ```bash
 git clone https://github.com/rhamblen/Audiobookshelf-librarian-MCP
 cd Audiobookshelf-librarian-MCP
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env   # fill in your values
 python -m abs_librarian
 
 # Tests
 pytest
+
+# Lint
+ruff check src/ tests/
 ```
 
 ## License
