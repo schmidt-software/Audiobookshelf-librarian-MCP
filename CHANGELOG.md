@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Security
+- Added per-client-IP failed-auth throttling for the MCP bearer token. By default,
+  five failed attempts inside five minutes trigger HTTP 429 responses with
+  `Retry-After`, and repeated failures back off exponentially up to 15 minutes.
+- Documented the supported deployment model for TLS: terminate HTTPS in a
+  reverse proxy and keep the application itself on plain HTTP behind it.
 ### Added
 - Added regression tests for `server.py` tool wrappers and direct coverage for
   `fs_move`, `fs_quarantine`, and `detect_blobs`.

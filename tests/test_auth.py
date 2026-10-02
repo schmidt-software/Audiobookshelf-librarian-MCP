@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
 # server.py builds its Config at import time; provide the required settings first.
@@ -22,7 +24,7 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 from abs_librarian import __main__ as entry  # noqa: E402
 from abs_librarian import server as server_module  # noqa: E402
-from abs_librarian.auth import BearerTokenMiddleware  # noqa: E402
+from abs_librarian.auth import AuthBackoffSettings, BearerTokenMiddleware  # noqa: E402
 
 BASE_URL = "http://localhost:8000"
 MCP_HEADERS = {
@@ -50,6 +52,46 @@ TOOLS_CALL = {
 
 def _auth(token: str) -> dict[str, str]:
     return {**MCP_HEADERS, "Authorization": f"Bearer {token}"}
+
+
+async def _send_http_request(app, headers: dict[str, str], client=("127.0.0.1", 12345)):
+    messages: list[dict] = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/mcp",
+        "raw_path": b"/mcp",
+        "query_string": b"",
+        "headers": [
+            (name.lower().encode("ascii"), value.encode("latin-1"))
+            for name, value in headers.items()
+        ],
+        "client": client,
+        "server": ("localhost", 8000),
+    }
+
+    await app(scope, receive, send)
+    start = next(message for message in messages if message["type"] == "http.response.start")
+    body = b"".join(
+        message.get("body", b"")
+        for message in messages
+        if message["type"] == "http.response.body"
+    )
+    response_headers = {
+        name.decode("latin-1").lower(): value.decode("latin-1")
+        for name, value in start.get("headers", [])
+    }
+    return start["status"], response_headers, json.loads(body.decode("utf-8"))
 
 
 def test_entrypoint_wraps_mcp_app_with_auth():
@@ -84,7 +126,11 @@ def client():
     # (and auth wrapper with a known token) instead of reusing the module-level instance.
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(server_module.mcp, "_session_manager", None)
-        fresh = BearerTokenMiddleware(server_module.mcp.streamable_http_app(), TOKEN)
+        fresh = BearerTokenMiddleware(
+            server_module.mcp.streamable_http_app(),
+            TOKEN,
+            backoff_settings=AuthBackoffSettings(failure_limit=1000),
+        )
         mp.setattr(entry, "_mcp_app", fresh)
         # Entering the context manager runs the ASGI lifespan through entry.app and the auth
         # wrapper.
@@ -122,6 +168,92 @@ def test_mcp_requests_rejected_without_valid_token(client, payload, headers):
 def test_other_paths_require_auth(client):
     assert client.get("/mcp", headers=MCP_HEADERS).status_code == 401
     assert client.get("/anything").status_code == 401
+
+
+def test_failed_auth_rate_limited_with_retry_after():
+    now = [1000.0]
+
+    async def inner(scope, receive, send):
+        response = JSONResponse({"ok": True})
+        await response(scope, receive, send)
+
+    middleware = BearerTokenMiddleware(
+        inner,
+        TOKEN,
+        backoff_settings=AuthBackoffSettings(
+            failure_limit=2,
+            failure_window_seconds=300,
+            initial_backoff_seconds=30,
+            max_backoff_seconds=120,
+        ),
+        clock=lambda: now[0],
+    )
+
+    status, headers, body = asyncio.run(_send_http_request(middleware, _auth("wrong-1")))
+    assert status == 401
+    assert headers["www-authenticate"].startswith("Bearer ")
+    assert body["error"] == "invalid_token"
+
+    status, _, _ = asyncio.run(_send_http_request(middleware, _auth("wrong-2")))
+    assert status == 401
+
+    status, headers, body = asyncio.run(_send_http_request(middleware, _auth("wrong-3")))
+    assert status == 429
+    assert headers["retry-after"] == "30"
+    assert body["error"] == "too_many_attempts"
+
+    now[0] += 10
+    status, headers, body = asyncio.run(_send_http_request(middleware, _auth("wrong-4")))
+    assert status == 429
+    assert headers["retry-after"] == "20"
+    assert body["error"] == "too_many_attempts"
+
+    now[0] += 20
+    status, _, body = asyncio.run(_send_http_request(middleware, _auth(TOKEN)))
+    assert status == 200
+    assert body == {"ok": True}
+
+    status, _, body = asyncio.run(_send_http_request(middleware, _auth("wrong-5")))
+    assert status == 401
+    assert body["error"] == "invalid_token"
+
+
+def test_failed_auth_tracking_is_per_client_ip():
+    now = [2000.0]
+
+    async def inner(scope, receive, send):
+        response = JSONResponse({"ok": True})
+        await response(scope, receive, send)
+
+    middleware = BearerTokenMiddleware(
+        inner,
+        TOKEN,
+        backoff_settings=AuthBackoffSettings(
+            failure_limit=1,
+            failure_window_seconds=300,
+            initial_backoff_seconds=45,
+            max_backoff_seconds=120,
+        ),
+        clock=lambda: now[0],
+    )
+
+    status, _, _ = asyncio.run(
+        _send_http_request(middleware, _auth("wrong-a"), client=("10.0.0.10", 1111))
+    )
+    assert status == 401
+
+    status, headers, body = asyncio.run(
+        _send_http_request(middleware, _auth("wrong-b"), client=("10.0.0.10", 1111))
+    )
+    assert status == 429
+    assert headers["retry-after"] == "45"
+    assert body["error"] == "too_many_attempts"
+
+    status, _, body = asyncio.run(
+        _send_http_request(middleware, _auth("wrong-c"), client=("10.0.0.11", 1111))
+    )
+    assert status == 401
+    assert body["error"] == "invalid_token"
 
 
 def test_valid_token_initialize(client):

@@ -23,6 +23,11 @@ You'll need three things regardless of which path you choose:
    openssl rand -hex 32
    ```
 
+> **Important — use TLS for connector traffic.** The application itself speaks
+> plain HTTP, so `MCP_TOKEN` is sent in cleartext unless you put the service
+> behind an HTTPS reverse proxy. For anything beyond a fully trusted LAN
+> segment, terminate TLS in Caddy, nginx, Traefik, or a similar reverse proxy.
+
 > **Important — paths must match.** The path you mount as `/audiobooks` in this container must point at the *same files* Audiobookshelf sees as its library. If Audiobookshelf reads `/mnt/user/audiobooks`, mount that same host path here. Otherwise the file-system tools won't find your books.
 
 ---
@@ -114,6 +119,47 @@ docker run -d \
    docker compose up -d
    ```
 
+### Recommended — put the container behind an HTTPS reverse proxy
+
+The container does not provide TLS itself. Keep it bound to a local interface or
+trusted LAN, and let a reverse proxy handle certificates and HTTPS.
+
+1. Pick a hostname clients will use, for example `abs-librarian.example.com`.
+2. Set `MCP_ALLOWED_HOSTS` to that exact hostname (or hostname plus mapped port,
+   if you terminate TLS on a non-default port).
+3. Configure the proxy to forward the original Host header unchanged.
+4. Point Claude at `https://abs-librarian.example.com/mcp`.
+
+Example Caddyfile:
+
+```caddy
+abs-librarian.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Example nginx config:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name abs-librarian.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/abs-librarian.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/abs-librarian.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+```
+
+If you keep the server on plain HTTP for local-only use, treat that network as
+trusted: the bearer token is otherwise visible to anyone who can capture traffic.
+
 ### Method 3 — Unraid
 
 1. In Unraid, go to **Docker → Add Container**, then **Add Container from XML** (Community Applications), and import [`abs-librarian-mcp.xml`](abs-librarian-mcp.xml) from this repo — or add the repository's GitHub URL to your template repositories.
@@ -145,6 +191,9 @@ Once the container is running, add it as a connector in **Claude Desktop** (`cla
   }
 }
 ```
+
+When you use a reverse proxy, prefer an HTTPS connector URL such as
+`https://abs-librarian.example.com/mcp`.
 
 - Replace `YOUR-SERVER-IP` with your server's LAN IP.
 - Replace `8000` with the host port you mapped, if you changed it.
@@ -202,6 +251,10 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 | `ABS_LIBRARY_ITEMS_LIMIT` | — | `5000` | Maximum number of items requested per library listing call |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
+| `MCP_AUTH_FAILURE_LIMIT` | — | `5` | Failed auth attempts allowed per client IP inside the rolling window before HTTP 429 backoff starts |
+| `MCP_AUTH_FAILURE_WINDOW_SECONDS` | — | `300` | Rolling window for counting failed auth attempts per client IP |
+| `MCP_AUTH_BACKOFF_SECONDS` | — | `60` | Initial `Retry-After` backoff, doubled on repeated failures inside the window |
+| `MCP_AUTH_MAX_BACKOFF_SECONDS` | — | `900` | Maximum `Retry-After` backoff for repeated failed auth attempts |
 | `DRY_RUN_DEFAULT` | — | `true` | Default `dry_run` value for mutating tools when omitted |
 | `PORT` | — | `8000` | Server listen port |
 | `MCP_ALLOWED_HOSTS` | — | empty (loopback only) | Additional comma-separated exact server Host values, including mapped port; no wildcards, URLs, or paths |
@@ -217,6 +270,7 @@ Restart Claude Desktop (or reload the connector in the web app) and the `abs-lib
 |---|---|---|
 | `/mcp` returns 421 | Untrusted Host | Add the exact server IP/hostname and externally mapped port to `MCP_ALLOWED_HOSTS`, then restart |
 | `/mcp` returns 403 | Untrusted Origin | Adding a Host does not relax SDK Origin checks; use a non-browser MCP client without an Origin header |
+| `/mcp` returns 429 | Too many failed auth attempts from one client IP | Wait for the `Retry-After` interval or adjust the auth backoff settings for your deployment |
 | `/health` returns `{"status": "error"}` | Server can't reach Audiobookshelf | Check `ABS_URL` is reachable from the container and `ABS_TOKEN` is valid |
 | Claude shows no tools / 401 | Token mismatch | Ensure the `Authorization: Bearer` value exactly equals `MCP_TOKEN` |
 | Container exits with `MCP_TOKEN must be set` | `MCP_TOKEN` is empty | Set `MCP_TOKEN` to a long random secret; the server will not run unauthenticated |
