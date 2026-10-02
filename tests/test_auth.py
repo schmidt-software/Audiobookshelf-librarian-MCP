@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -11,14 +12,16 @@ import pytest
 from starlette.testclient import TestClient
 
 # server.py builds its Config at import time; provide the required settings first.
+# MCP_TOKEN is deliberately not set here: the client fixture installs its own token so
+# these tests do not depend on (or leak into) environment shared with other test modules.
 TOKEN = "test-secret-token-0123456789"
 os.environ.setdefault("ABS_URL", "http://abs.invalid")
 os.environ.setdefault("ABS_TOKEN", "abs-test-token")
-os.environ["MCP_TOKEN"] = TOKEN
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 from abs_librarian import __main__ as entry  # noqa: E402
+from abs_librarian import server as server_module  # noqa: E402
 from abs_librarian.auth import BearerTokenMiddleware  # noqa: E402
 
 BASE_URL = "http://localhost:8000"
@@ -49,11 +52,22 @@ def _auth(token: str) -> dict[str, str]:
     return {**MCP_HEADERS, "Authorization": f"Bearer {token}"}
 
 
+def test_entrypoint_wraps_mcp_app_with_auth():
+    assert isinstance(entry._mcp_app, BearerTokenMiddleware)
+
+
 @pytest.fixture(scope="module")
 def client():
-    # Entering the context manager runs the ASGI lifespan through the auth wrapper.
-    with TestClient(entry.app, base_url=BASE_URL) as c:
-        yield c
+    # A FastMCP session manager can only run once per process, so build a fresh MCP app
+    # (and auth wrapper with a known token) instead of reusing the module-level instance.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(server_module.mcp, "_session_manager", None)
+        fresh = BearerTokenMiddleware(server_module.mcp.streamable_http_app(), TOKEN)
+        mp.setattr(entry, "_mcp_app", fresh)
+        # Entering the context manager runs the ASGI lifespan through entry.app and the auth
+        # wrapper.
+        with TestClient(entry.app, base_url=BASE_URL) as c:
+            yield c
 
 
 def test_health_is_public(client):
@@ -130,18 +144,18 @@ def test_fail_closed_when_token_not_configured(configured):
         assert resp.status_code == 503
 
 
-async def test_lifespan_passes_through():
+def test_lifespan_passes_through():
     events: list[str] = []
 
     async def inner(scope, receive, send):
         assert scope["type"] == "lifespan"
         events.append("lifespan")
 
-    await BearerTokenMiddleware(inner, "")({"type": "lifespan"}, None, None)
+    asyncio.run(BearerTokenMiddleware(inner, "")({"type": "lifespan"}, None, None))
     assert events == ["lifespan"]
 
 
-async def test_websocket_rejected_without_token():
+def test_websocket_rejected_without_token():
     sent: list[dict] = []
 
     async def inner(scope, receive, send):  # pragma: no cover - must not be reached
@@ -150,7 +164,8 @@ async def test_websocket_rejected_without_token():
     async def send(message):
         sent.append(message)
 
-    await BearerTokenMiddleware(inner, TOKEN)({"type": "websocket", "headers": []}, None, send)
+    middleware = BearerTokenMiddleware(inner, TOKEN)
+    asyncio.run(middleware({"type": "websocket", "headers": []}, None, send))
     assert sent[0]["type"] == "websocket.close"
     assert sent[0]["code"] == 1008
 
