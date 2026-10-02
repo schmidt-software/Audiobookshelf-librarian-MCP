@@ -7,6 +7,11 @@
   `fs_move`, `fs_quarantine`, and `detect_blobs`.
 
 ### Fixed
+- `find_items` now rejects invalid, overlong, or overly complex `title_regex` values with a
+  clear `ValueError`, and bounds title matching to reduce ReDoS risk.
+- Library item listing no longer requests unlimited results. `ABS_LIBRARY_ITEMS_LIMIT`
+  now caps each library fetch at a configurable default of 5000 items to avoid loading
+  entire libraries into memory in one API call.
 - Mutating tools now honor `DRY_RUN_DEFAULT` when `dry_run` is omitted, including ABS
   delete/backup actions and file-system moves. Added `dry_run` regression coverage while
   keeping `confirm=true` as a compatibility alias for execution.

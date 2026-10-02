@@ -74,7 +74,7 @@ ID_METHODS = [
         {},
     ),
     ("delete_item", (), "item_id", "DELETE", "/api/items/", "", {}),
-    ("get_library_items", (), "library_id", "GET", "/api/libraries/", "/items", {"limit": "0"}),
+    ("get_library_items", (), "library_id", "GET", "/api/libraries/", "/items", {"limit": "5000"}),
     (
         "get_library_items_missing",
         (),
@@ -82,11 +82,16 @@ ID_METHODS = [
         "GET",
         "/api/libraries/",
         "/items",
-        {"limit": "0"},
+        {"limit": "5000"},
     ),
     ("scan_library", (), "library_id", "POST", "/api/libraries/", "/scan", {}),
     ("get_series", (), "library_id", "GET", "/api/libraries/", "/series", {"limit": "0"}),
 ]
+
+
+def test_library_items_limit_must_be_positive():
+    with pytest.raises(ValueError, match="library_items_limit must be greater than 0"):
+        ABSClient(BASE, TOKEN, library_items_limit=0)
 INVALID_IDS = [
     "",
     " ",
@@ -232,3 +237,12 @@ async def test_batch_ids_remain_raw_in_json(client, requests):
         "options": {"provider": "google", "overrideCover": True, "overrideDetails": True},
         "libraryItemIds": ids,
     }
+
+
+async def test_get_library_items_uses_configured_limit(requests):
+    client = ABSClient(BASE, TOKEN, library_items_limit=123)
+
+    await client.get_library_items("lib1")
+
+    assert len(requests) == 1
+    assert dict(requests[0].url.params) == {"limit": "123"}

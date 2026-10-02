@@ -33,6 +33,12 @@ Existing ABS MCPs only wrap the read/manage API. This server also ships **file-s
   Dot segments (`.` / `..`), `/`, `\`, `%`, `?`, `#`, and control characters raise
   `ValueError` before an API request. Accepted IDs are URL-encoded as a single path
   segment; batch IDs are validated but remain unchanged in JSON bodies.
+- **Bounded title regexes**: `find_items.title_regex` rejects invalid or overly complex
+  patterns, caps regex length, and matches only against the first 1024 characters of
+  a title to reduce ReDoS risk.
+- **Bounded library loading**: library item fetches no longer request unlimited results.
+  They are capped by `ABS_LIBRARY_ITEMS_LIMIT` (default `5000`) to avoid loading an
+  entire library in one call.
 
 ## Quick start
 
@@ -94,6 +100,7 @@ the example above assumes the MCP server itself is at `192.168.1.100`.
 |---|---|---|---|
 | `ABS_URL` | ✅ | — | Audiobookshelf base URL |
 | `ABS_TOKEN` | ✅ | — | ABS API token |
+| `ABS_LIBRARY_ITEMS_LIMIT` | — | `5000` | Maximum number of items requested per library listing call |
 | `LIBRARY_ROOTS` | ✅ | — | Colon-separated container paths for the library |
 | `QUARANTINE_DIR` | ✅ | `/quarantine` | Where unwanted files are moved |
 | `MCP_TOKEN` | ✅ | — | Static bearer token required on every `/mcp` request (`Authorization: Bearer <token>`); the server refuses to start without it. Only `/health` is public. |
@@ -130,7 +137,7 @@ and is not an MCP endpoint.
 Returns counts per library: items, authors, series, no-cover, no-series, missing.
 
 ### `find_items(library_id, ...)`
-Filtered search. Filters: `title_regex`, `author`, `series`, `no_cover`, `no_series`, `missing`, `min/max_duration_hours`, `min/max_file_count`. Returns compact results (limit 200 default).
+Filtered search. Filters: `title_regex`, `author`, `series`, `no_cover`, `no_series`, `missing`, `min/max_duration_hours`, `min/max_file_count`. Invalid regexes return a clear error, overly long or complex patterns are rejected, and title matching is bounded to the first 1024 characters. Returns compact results (limit 200 default).
 
 ### `get_item(item_id)`
 Full detail for one item including file list.

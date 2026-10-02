@@ -25,6 +25,18 @@ from .url_security import validate_cover_url
 
 cfg = Config.from_env()
 _series_cache = SeriesCache()
+_TITLE_REGEX_MAX_LENGTH = 256
+_TITLE_MATCH_MAX_LENGTH = 1024
+_BACKREFERENCE_RE = re.compile(r"\\[1-9][0-9]*|\(\?P=[^)]+\)")
+_NESTED_QUANTIFIER_RE = re.compile(
+    r"\((?:\?[:=!]|"
+    r"\?<[=!])?"
+    r"(?:[^()\\]|\\.)*"
+    r"(?:\*|\+|\{\d+(?:,\d*)?\})"
+    r"(?:[^()\\]|\\.)*"
+    r"\)"
+    r"(?:\*|\+|\{\d+(?:,\d*)?\})"
+)
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
@@ -40,13 +52,59 @@ mcp = FastMCP(
 
 
 def _client() -> ABSClient:
-    return ABSClient(cfg.abs_url, cfg.abs_token)
+    return ABSClient(
+        cfg.abs_url,
+        cfg.abs_token,
+        library_items_limit=cfg.abs_library_items_limit,
+    )
 
 
 def _permitted() -> list[str]:
     return cfg.library_roots
 
 
+def _strip_character_classes(pattern: str) -> str:
+    parts: list[str] = []
+    in_class = False
+    escaped = False
+    for char in pattern:
+        if escaped:
+            if not in_class:
+                parts.append(f"\\{char}")
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if in_class:
+            if char == "]":
+                in_class = False
+            continue
+        if char == "[":
+            in_class = True
+            continue
+        parts.append(char)
+    if escaped:
+        parts.append("\\")
+    return "".join(parts)
+
+
+def _compile_title_regex(title_regex: str) -> re.Pattern[str]:
+    if len(title_regex) > _TITLE_REGEX_MAX_LENGTH:
+        raise ValueError(
+            f"Invalid title_regex: pattern exceeds {_TITLE_REGEX_MAX_LENGTH} characters."
+        )
+    try:
+        pattern = re.compile(title_regex, re.IGNORECASE)
+    except re.error as exc:
+        raise ValueError(f"Invalid title_regex: {exc}") from exc
+
+    simplified = _strip_character_classes(title_regex)
+    if _BACKREFERENCE_RE.search(simplified) or _NESTED_QUANTIFIER_RE.search(simplified):
+        raise ValueError(
+            "Invalid title_regex: nested quantifiers and backreferences are not allowed."
+        )
+    return pattern
 def _resolve_dry_run(dry_run: bool | None, confirm: bool | None = None) -> bool:
     if dry_run is not None and confirm is not None and dry_run != (not confirm):
         raise ValueError("dry_run conflicts with confirm")
@@ -140,10 +198,9 @@ async def find_items(
     limit: int = 200,
 ) -> dict:
     """Search library items with optional filters. Returns compact results."""
+    pattern = _compile_title_regex(title_regex) if title_regex else None
     client = _client()
     items = await client.get_library_items(library_id)
-
-    pattern = re.compile(title_regex, re.IGNORECASE) if title_regex else None
     results = []
 
     for item in items:
@@ -164,7 +221,7 @@ async def find_items(
             if author.lower() not in author_name:
                 continue
         title = meta.get("title") or item.get("path", "").split("/")[-1]
-        if pattern and not pattern.search(title):
+        if pattern and not pattern.search(title[:_TITLE_MATCH_MAX_LENGTH]):
             continue
 
         duration = media.get("duration") or 0
