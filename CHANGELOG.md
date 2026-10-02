@@ -6,6 +6,9 @@
 - File-system mutations now fail closed if the audit log cannot be written. The
   server logs a loud stderr error and aborts before changing files, preserving
   the audit trail guarantee (#18).
+- Added the missing `abs_librarian.__main__.main()` console entry point so the
+  installed `abs-librarian-mcp` command now starts uvicorn with the same host,
+  port, and empty-`MCP_TOKEN` startup guard as `python -m abs_librarian` (#23).
 
 ## [0.3.0] - 2026-10-03
 
